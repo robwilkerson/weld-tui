@@ -1,0 +1,85 @@
+<h2>Architectural Approaches</h2>
+<p class="subtitle">How should weld's internals be structured?</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Monolithic Single-Binary</h3>
+      <p>One crate, one binary. All logic — diff engine, TUI rendering, file I/O, merge operations — lives in a single crate with module separation.</p>
+      <div class="pros-cons">
+        <div class="pros">
+          <h4>Pros</h4>
+          <ul>
+            <li>Simplest to start — no workspace overhead</li>
+            <li>Fast iteration, easy refactoring</li>
+            <li>Single compile target</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <h4>Cons</h4>
+          <ul>
+            <li>Harder to extract a library later</li>
+            <li>Compile times grow with the whole project</li>
+            <li>Tighter coupling risk as it grows</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Workspace: Core Library + TUI Binary</h3>
+      <p>Cargo workspace with two crates: <code>weld-core</code> (diff engine, merge logic, file ops) and <code>weld-tui</code> (ratatui UI, keybindings, rendering). Core is a library, TUI is the binary.</p>
+      <div class="pros-cons">
+        <div class="pros">
+          <h4>Pros</h4>
+          <ul>
+            <li>Clean separation from day one</li>
+            <li>Core is testable without TUI</li>
+            <li>Enables future frontends (GUI, web, LSP)</li>
+            <li>Faster incremental compiles (change UI → only rebuild TUI)</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <h4>Cons</h4>
+          <ul>
+            <li>Slightly more setup upfront</li>
+            <li>Need to think about API boundaries early</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Workspace: Core + TUI + CLI</h3>
+      <p>Three crates: <code>weld-core</code> (engine), <code>weld-tui</code> (interactive UI), and <code>weld-cli</code> (non-interactive commands like batch diff, exit codes for scripting).</p>
+      <div class="pros-cons">
+        <div class="pros">
+          <h4>Pros</h4>
+          <ul>
+            <li>Scriptable from day one</li>
+            <li>Maximum modularity</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <h4>Cons</h4>
+          <ul>
+            <li>Premature — CLI can be added to TUI binary later</li>
+            <li>More crates to maintain before you need them</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 2rem; padding: 1.2rem; border-left: 3px solid #7c3aed; background: rgba(124, 58, 237, 0.08); border-radius: 4px;">
+  <h3 style="margin-top:0;">Recommendation: B</h3>
+  <p style="margin-bottom:0;">The two-crate workspace hits the sweet spot. It's barely more setup than a single crate (just a workspace Cargo.toml), but gives you testable core logic and clean boundaries from the start. Option C is premature — when you want a CLI mode, just add a <code>--batch</code> flag to the TUI binary.</p>
+</div>

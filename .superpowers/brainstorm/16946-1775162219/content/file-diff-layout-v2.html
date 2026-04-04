@@ -1,0 +1,98 @@
+<h2>File Diff View — Revised Layout v2</h2>
+<p class="subtitle">Gutter extends through the header row to anchor both file paths</p>
+
+<div class="mockup">
+  <div class="mockup-header">weld — File Diff View</div>
+  <div class="mockup-body" style="font-family: monospace; font-size: 13px; background: #1e1e2e; color: #cdd6f4; padding: 0; line-height: 1.5;">
+
+    <!-- Header with gutter extending through -->
+    <div style="display: flex; border-bottom: 1px solid #45475a;">
+      <div style="flex: 1; padding: 6px 12px; color: #89b4fa; font-weight: bold;">src/main.rs</div>
+      <div style="width: 24px; background: #181825; border-left: 1px solid #313244; border-right: 1px solid #313244;"></div>
+      <div style="flex: 1; padding: 6px 12px; color: #89b4fa; font-weight: bold;">src/main.rs (modified)</div>
+    </div>
+
+    <!-- Content area -->
+    <div style="display: flex;">
+      <!-- Left pane -->
+      <div style="flex: 1; display: flex;">
+        <div style="flex: 1; padding: 4px 0;">
+          <div style="display: flex;">
+            <span style="color: #6c7086; width: 36px; text-align: right; padding-right: 8px; user-select: none;">1</span>
+            <span style="color: #a6e3a1;">fn</span><span> main() {</span>
+          </div>
+          <div style="display: flex;">
+            <span style="color: #6c7086; width: 36px; text-align: right; padding-right: 8px; user-select: none;">2</span>
+            <span>    </span><span style="color: #a6e3a1;">let</span><span> config = Config::load();</span>
+          </div>
+          <div style="display: flex; background: rgba(243, 139, 168, 0.15);">
+            <span style="color: #6c7086; width: 36px; text-align: right; padding-right: 8px; user-select: none;">3</span>
+            <span>    </span><span style="color: #a6e3a1;">let</span><span> app = </span><span style="background: rgba(243, 139, 168, 0.35); border-radius: 2px;">App::new()</span><span>;</span>
+          </div>
+          <div style="display: flex; background: rgba(243, 139, 168, 0.15);">
+            <span style="color: #6c7086; width: 36px; text-align: right; padding-right: 8px; user-select: none;">4</span>
+            <span>    app.</span><span style="background: rgba(243, 139, 168, 0.35); border-radius: 2px;">run</span><span>();</span>
+          </div>
+          <div style="display: flex;">
+            <span style="color: #6c7086; width: 36px; text-align: right; padding-right: 8px; user-select: none;">5</span>
+            <span>}</span>
+          </div>
+        </div>
+        <!-- Left scrollbar -->
+        <div style="width: 10px; background: #181825; border-left: 1px solid #313244;">
+          <div style="width: 6px; height: 30px; background: #585b70; border-radius: 3px; margin: 4px 2px;"></div>
+        </div>
+      </div>
+
+      <!-- Gutter (diff indicator only) -->
+      <div style="width: 24px; background: #181825; display: flex; flex-direction: column; align-items: center; padding-top: 4px; border-left: 1px solid #313244; border-right: 1px solid #313244;">
+        <div style="color: #45475a; font-size: 10px;">·</div>
+        <div style="color: #45475a; font-size: 10px;">·</div>
+        <div style="color: #f38ba8; font-size: 10px; font-weight: bold;">◀▶</div>
+        <div style="color: #45475a; font-size: 10px;">·</div>
+      </div>
+
+      <!-- Right pane -->
+      <div style="flex: 1; display: flex;">
+        <div style="flex: 1; padding: 4px 0;">
+          <div style="display: flex;">
+            <span style="color: #6c7086; width: 36px; text-align: right; padding-right: 8px; user-select: none;">1</span>
+            <span style="color: #a6e3a1;">fn</span><span> main() {</span>
+          </div>
+          <div style="display: flex;">
+            <span style="color: #6c7086; width: 36px; text-align: right; padding-right: 8px; user-select: none;">2</span>
+            <span>    </span><span style="color: #a6e3a1;">let</span><span> config = Config::load();</span>
+          </div>
+          <div style="display: flex; background: rgba(166, 227, 161, 0.15);">
+            <span style="color: #6c7086; width: 36px; text-align: right; padding-right: 8px; user-select: none;">3</span>
+            <span>    </span><span style="color: #a6e3a1;">let</span><span> app = </span><span style="background: rgba(166, 227, 161, 0.35); border-radius: 2px;">App::with_config(&config)</span><span>;</span>
+          </div>
+          <div style="display: flex; background: rgba(166, 227, 161, 0.15);">
+            <span style="color: #6c7086; width: 36px; text-align: right; padding-right: 8px; user-select: none;">4</span>
+            <span>    app.</span><span style="background: rgba(166, 227, 161, 0.35); border-radius: 2px;">start</span><span>();</span>
+          </div>
+          <div style="display: flex;">
+            <span style="color: #6c7086; width: 36px; text-align: right; padding-right: 8px; user-select: none;">5</span>
+            <span>}</span>
+          </div>
+        </div>
+        <!-- Right scrollbar -->
+        <div style="width: 10px; background: #181825; border-left: 1px solid #313244;">
+          <div style="width: 6px; height: 30px; background: #585b70; border-radius: 3px; margin: 4px 2px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Status bar -->
+    <div style="display: flex; justify-content: space-between; background: #313244; padding: 4px 12px; color: #a6adc8; font-size: 12px; border-top: 1px solid #45475a;">
+      <span>Block 1 of 1 · <span style="color: #f38ba8;">[+] left</span></span>
+      <span>:w :q :q! :e! · j/k nav · H/L copy · ? help</span>
+    </div>
+
+  </div>
+</div>
+
+<div class="section" style="margin-top: 1.5rem;">
+  <h3>Change from v1</h3>
+  <p>Gutter now extends through the header row — the dark column runs from the very top to the status bar, anchoring both file path labels to clear left/right ownership.</p>
+</div>
