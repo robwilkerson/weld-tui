@@ -52,6 +52,11 @@ lint:
 test:
     cargo test --all
 
+# Run tests with coverage report
+[group('Development')]
+coverage:
+    cargo llvm-cov --all --open
+
 # Format and lint
 [group('Development')]
 check: fmt lint
