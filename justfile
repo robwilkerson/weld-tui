@@ -32,3 +32,21 @@ bootstrap:
     echo ""
 
     echo "🎉 Bootstrap complete!"
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Development
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Format all code
+[group('Development')]
+fmt:
+    cargo fmt --all
+
+# Run clippy linter
+[group('Development')]
+lint:
+    cargo clippy --all-targets --all-features -- -D warnings
+
+# Format and lint
+[group('Development')]
+check: fmt lint
