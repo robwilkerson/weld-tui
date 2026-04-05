@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+#
+# pre-commit — runs automatically before every `git commit`.
+#
+# What it does:
+#   1. Scans staged files for leaked secrets using Kingfisher. If valid secrets
+#      are found, the commit is blocked.
+#   2. Runs `cargo fmt` to auto-format Rust code. If the formatter changes any
+#      staged files, those changes are automatically re-staged so the commit
+#      includes the formatted versions.
+#
+# Setup:
+#   Run `just bootstrap` (or `git config core.hooksPath .githooks`) to
+#   activate this hook. Requires `kingfisher` to be installed.
+#
+set -e
+
+# ── Configuration ─────────────────────────────────────────────────────────────
+FMT_CMD="cargo fmt"
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Get git root directory and change to it
+GIT_ROOT=$(git rev-parse --show-toplevel)
+cd "$GIT_ROOT"
+
+# Get staged files (Added, Copied, Modified)
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM)
+
+if [ -z "$STAGED_FILES" ]; then
+    exit 0
+fi
+
+# Secrets scanning with Kingfisher (only valid secrets)
+echo "🔍 Scanning for secrets..."
+STAGED_FILES_ARGS=$(echo "$STAGED_FILES" | tr '\n' ' ')
+if ! kingfisher scan --only-valid $STAGED_FILES_ARGS; then
+    echo ""
+    echo "❌ Valid secrets detected! Commit blocked."
+    echo "💡 Run: kingfisher scan --only-valid $STAGED_FILES_ARGS"
+    exit 1
+fi
+echo "✅ No valid secrets detected"
+
+# Auto-format staged files
+if [ -n "$FMT_CMD" ]; then
+    echo "🎨 Running formatter..."
+    $FMT_CMD
+    # Re-stage any files that were reformatted
+    REFORMATTED=$(git diff --name-only -- $STAGED_FILES_ARGS)
+    if [ -n "$REFORMATTED" ]; then
+        echo "$REFORMATTED" | xargs git add
+        echo "✅ Reformatted and re-staged: $(echo "$REFORMATTED" | wc -l | tr -d ' ') file(s)"
+    fi
+fi

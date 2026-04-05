@@ -1,0 +1,51 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:best-practices", "helpers:pinGitHubActionDigests"],
+  "timezone": "America/New_York",
+  "schedule": ["after 3am and before 5am on Saturday"],
+  "enabledManagers": ["cargo", "github-actions", "custom.regex"],
+  "printConfig": false,
+  "automerge": false,
+  "branchConcurrentLimit": 0,
+  "prConcurrentLimit": 0,
+  "prHourlyLimit": 0,
+  "osvVulnerabilityAlerts": true,
+  "vulnerabilityAlerts": {
+    "schedule": ["after 3am and before 5am on Saturday"],
+    "addLabels": ["security"]
+  },
+  "prBodyTemplate": "{{{header}}}{{{table}}}{{{notes}}}{{{changelogs}}}{{{configDescription}}}{{{controls}}}{{{footer}}}",
+  "prBodyColumns": [
+    "Package",
+    "Type",
+    "Update",
+    "Change"
+  ],
+  "prBodyDefinitions": {
+    "Package": "**{{{depNameLinked}}}**",
+    "Type": "{{{updateType}}}",
+    "Update": "{{{displayFrom}}} → {{{displayTo}}}",
+    "Change": "{{{#if changelogUrl}}}[Changelog]({{{changelogUrl}}}){{{/if}}}"
+  },
+  "fetchReleaseNotes": true,
+  "lockFileMaintenance": {
+    "enabled": false
+  },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["\\.github/(actions|workflows)/.+\\.ya?ml$"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+?) depName=(?<depName>[^\\s]+?)\\n\\s+[A-Z_]+:\\s*(?<currentValue>[^\\s]+)"
+      ],
+      "extractVersionTemplate": "^v?(?<version>.+)$"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Highlight breaking changes with label",
+      "matchUpdateTypes": ["major"],
+      "addLabels": ["breaking-change"]
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+#
+# post-merge — runs automatically after `git pull` or `git merge` completes.
+#
+# What it does:
+#   When on the main branch, cleans up stale local branches whose upstream
+#   tracking branch has been deleted (i.e., merged and removed on the remote).
+#   This keeps your local branch list tidy without manual cleanup.
+#
+#   On non-main branches, this hook does nothing.
+#
+# Setup:
+#   Run `just bootstrap` (or `git config core.hooksPath .githooks`) to
+#   activate this hook.
+#
+set -e
+
+# Get current branch
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+# Only run cleanup on main branch
+if [ "$CURRENT_BRANCH" != "main" ]; then
+    exit 0
+fi
+
+echo ""
+echo "🧹 Post-merge cleanup on main branch..."
+
+# Prune deleted remote branches
+echo "✂️  Pruning deleted remote branches..."
+git fetch --prune
+
+# Delete local branches that have been deleted remotely (gone branches)
+echo "🗑️  Cleaning up merged branches..."
+GONE_BRANCHES=$(git branch -vv | grep ': gone]' | awk '{print $1}' || true)
+
+if [ -n "$GONE_BRANCHES" ]; then
+    echo "$GONE_BRANCHES" | while read -r branch; do
+        echo "  Deleting: $branch"
+        git branch -D "$branch" 2>/dev/null || true
+    done
+    echo "✅ Cleanup complete!"
+else
+    echo "✨ No branches to clean up!"
+fi
+
+echo ""
+echo "Branches remaining:"
+git branch
+
+echo ""

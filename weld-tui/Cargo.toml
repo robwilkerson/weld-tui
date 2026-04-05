@@ -1,0 +1,17 @@
+[package]
+name = "weld-tui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "TUI file and directory diff viewer with merge capabilities"
+
+[[bin]]
+name = "weld"
+path = "src/main.rs"
+
+[dependencies]
+weld-core = { path = "../weld-core" }
+ratatui = "0.29"
+crossterm = "0.28"
+clap = { version = "4", features = ["derive"] }
+clap_complete = "4"

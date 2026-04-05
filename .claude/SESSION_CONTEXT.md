@@ -2,7 +2,7 @@
 Last updated: 2026-04-04
 
 ## Status
-Ready to execute Phase 1 implementation plan.
+Phase 1 in progress. Task 1 (scaffolding) complete. Task 2 (File I/O) is next.
 
 ## Completed
 - Brainstormed TUI diff/merge tool design with visual companion
@@ -10,9 +10,14 @@ Ready to execute Phase 1 implementation plan.
 - Wrote implementation plan: `docs/superpowers/plans/2026-04-02-weld-phase1-file-diff-mvp.md`
 - Created GitHub repo: robwilkerson/weld-tui (public)
 - Initial commit pushed with spec, plan, and brainstorm artifacts
+- Project init: `.claude/CLAUDE.md`, staff-engineer agent, memory
+- Task 1: Cargo workspace scaffolded (weld-core lib + weld-tui bin), builds clean
+- Pinned Rust 1.94 in `mise.toml`
 
-## Next Step
-Execute Phase 1 plan inline (Task 1 → Task 12). User wants to follow along and understand each task.
+## Next Steps
+1. Set up pre-commit and post-merge hooks (operational task)
+2. Task 2: File I/O �� FileContent with load/save and line-ending preservation
+3. Tasks 3–12: Continue Phase 1 plan
 
 ## Decisions
 - Rust + ratatui + crossterm stack
@@ -21,3 +26,4 @@ Execute Phase 1 plan inline (Task 1 → Task 12). User wants to follow along and
 - Inline execution preferred over subagent-driven
 - Repo under robwilkerson (not a separate org) — can transfer later if needed
 - Named weld-tui to leave room for a potential weld GUI project
+- mise for language tooling (not rustup directly, not homebrew, not nix)
