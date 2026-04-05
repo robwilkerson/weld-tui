@@ -22,6 +22,8 @@ pub struct App {
     pub viewport_height: u16,
     /// Last-known viewport width (columns visible in code area).
     pub viewport_width: u16,
+    /// Whether the previous keypress was `g` (waiting for `gg`).
+    pub pending_g: bool,
 }
 
 /// Replace the home directory prefix with ~ for display.
@@ -79,6 +81,7 @@ impl App {
             scroll_x: 0,
             viewport_height: 0,
             viewport_width: 0,
+            pending_g: false,
         })
     }
 }
