@@ -4,7 +4,9 @@ use std::path::{Path, PathBuf};
 /// A file's content, split into lines.
 #[derive(Debug)]
 pub struct FileContent {
+    /// Path used to load this file content.
     pub path: PathBuf,
+    /// File content split into lines, without line terminators.
     pub lines: Vec<String>,
 }
 
