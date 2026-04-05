@@ -2,6 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// A file's content, split into lines.
+#[derive(Debug)]
 pub struct FileContent {
     pub path: PathBuf,
     pub lines: Vec<String>,
@@ -11,7 +12,12 @@ impl FileContent {
     /// Load a file from disk, splitting into lines.
     /// Fails loudly if the file doesn't exist or isn't readable.
     pub fn load(path: &Path) -> std::io::Result<Self> {
-        let raw = fs::read_to_string(path)?;
+        let raw = fs::read_to_string(path).map_err(|err| {
+            std::io::Error::new(
+                err.kind(),
+                format!("failed to read {}: {err}", path.display()),
+            )
+        })?;
         let lines: Vec<String> = raw.lines().map(String::from).collect();
         Ok(FileContent {
             path: path.to_path_buf(),
@@ -45,7 +51,20 @@ mod tests {
 
     #[test]
     fn load_missing_file_fails() {
-        let result = FileContent::load(Path::new("/nonexistent/file.txt"));
+        let dir = tempfile::tempdir().unwrap();
+        let missing = dir.path().join("missing.txt");
+        let result = FileContent::load(&missing);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn load_error_includes_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let missing = dir.path().join("nope.txt");
+        let err = FileContent::load(&missing).unwrap_err();
+        assert!(
+            err.to_string().contains("nope.txt"),
+            "error should include filename: {err}"
+        );
     }
 }

@@ -30,6 +30,8 @@ reviews:
     - "!target/**"
     # Lock files (Renovate handles these)
     - "!Cargo.lock"
+    # Test fixtures are sample content, not real code
+    - "!test-fixtures/**"
 
   path_instructions:
     - path: ".github/workflows/**"
