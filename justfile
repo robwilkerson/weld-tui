@@ -50,3 +50,39 @@ lint:
 # Format and lint
 [group('Development')]
 check: fmt lint
+
+# ══════════════════════════════════════════════════════════════════════════════
+# GitHub
+# ══════════════════════════════════════════════════════════════════════════════
+
+# Show unresolved, non-outdated review comments on a PR
+[group('GitHub')]
+pr-status pr:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    RESULT=$(gh api graphql -f query='
+    {
+      repository(owner: "robwilkerson", name: "weld-tui") {
+        pullRequest(number: '"{{pr}}"') {
+          reviewThreads(first: 50) {
+            nodes {
+              isResolved
+              isOutdated
+              comments(first: 1) {
+                nodes {
+                  path
+                  line
+                  body
+                }
+              }
+            }
+          }
+        }
+      }
+    }' --jq '.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false and .isOutdated == false) | "\(.comments.nodes[0].path):\(.comments.nodes[0].line) — \(.comments.nodes[0].body | split("\n")[0])"')
+    if [ -z "$RESULT" ]; then
+        echo "✅ No unresolved comments"
+    else
+        echo "⚠️  Unresolved comments:"
+        echo "$RESULT"
+    fi
