@@ -47,6 +47,11 @@ fmt:
 lint:
     cargo clippy --all-targets --all-features -- -D warnings
 
+# Run all tests
+[group('Development')]
+test:
+    cargo test --all
+
 # Format and lint
 [group('Development')]
 check: fmt lint
