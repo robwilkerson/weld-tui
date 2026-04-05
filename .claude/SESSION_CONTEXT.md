@@ -1,29 +1,38 @@
 # Session Context
-Last updated: 2026-04-04
+Last updated: 2026-04-05
 
 ## Status
-Phase 1 in progress. Task 1 (scaffolding) complete. Task 2 (File I/O) is next.
+Phase 1 in progress. TUI shell and file loading complete. Working on architecture hardening before diff engine.
 
 ## Completed
-- Brainstormed TUI diff/merge tool design with visual companion
-- Wrote spec: `docs/superpowers/specs/2026-04-02-weld-tui-diff-design.md`
-- Wrote implementation plan: `docs/superpowers/plans/2026-04-02-weld-phase1-file-diff-mvp.md`
-- Created GitHub repo: robwilkerson/weld-tui (public)
-- Initial commit pushed with spec, plan, and brainstorm artifacts
-- Project init: `.claude/CLAUDE.md`, staff-engineer agent, memory
-- Task 1: Cargo workspace scaffolded (weld-core lib + weld-tui bin), builds clean
-- Pinned Rust 1.94 in `mise.toml`
+- Project scaffolding: workspace, CI, hooks, tooling, README, LICENSE
+- TUI shell: bordered panes, Catppuccin Macchiato theme, event loop
+- File loading: FileContent::load(), content rendering with line numbers
+- Scrolling: vim keybindings (j/k/h/l/g/G/0/$), synchronized panes
+- Tab expansion for display, home dir shortening
+- Branch protection rules, Renovate, CodeRabbit configured
+- Architecture reviews (app + systems architects) — tickets created
+- CodeRabbit review feedback addressed
 
-## Next Steps
-1. Set up pre-commit and post-merge hooks (operational task)
-2. Task 2: File I/O �� FileContent with load/save and line-ending preservation
-3. Tasks 3–12: Continue Phase 1 plan
+## Active PR
+- #5 — File loading with scrollable content panes (review fixes pushed)
+
+## Open Tickets (prioritized)
+- #11 — Panic hook for terminal restore (quick win)
+- #6 — Extract rendering/input from main.rs
+- #7 — Align FileContent with plan (LineEnding, save, Clone)
+- #8 — Restructure App (FileDiffModel, Mode enum)
+- #9 — Render only visible rows (perf)
+- #10 — u32 scroll offsets (65K limit)
+- #3 — $ scroll uses longest visible line
+- #4 — j scroll cap at viewport bottom
+- #12 — Cross-platform shorten_dir
 
 ## Decisions
 - Rust + ratatui + crossterm stack
 - Cargo workspace: weld-core (lib) + weld-tui (bin)
-- `similar` crate for diffing, `clap` for CLI
-- Inline execution preferred over subagent-driven
-- Repo under robwilkerson (not a separate org) — can transfer later if needed
-- Named weld-tui to leave room for a potential weld GUI project
-- mise for language tooling (not rustup directly, not homebrew, not nix)
+- Catppuccin Macchiato default theme (structured for multiple themes)
+- TUI-first development: visual shell before core library
+- Tabs expanded for display only, original content preserved
+- CodeRabbit reviews on all non-trivial PRs
+- Renovate via Docker (not GitHub App), runs Saturday mornings

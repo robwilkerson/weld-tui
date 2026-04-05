@@ -28,6 +28,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
     let mut app = App::new(cli.left, cli.right)?;
+
+    // Restore the terminal on panic so it doesn't stay in raw mode.
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        ratatui::restore();
+        default_hook(info);
+    }));
+
     let mut terminal = ratatui::init();
 
     let result = main_loop(&mut terminal, &mut app);
