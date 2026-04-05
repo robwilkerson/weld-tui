@@ -25,14 +25,21 @@ pub struct App {
 }
 
 /// Replace the home directory prefix with ~ for display.
+/// Uses path-based prefix matching to avoid false positives
+/// (e.g., /Users/al matching /Users/alice).
 fn shorten_dir(path: &str) -> String {
+    let path = std::path::Path::new(path);
     if let Some(home) = std::env::var_os("HOME") {
-        let home = home.to_string_lossy();
-        if let Some(rest) = path.strip_prefix(home.as_ref()) {
-            return format!("~{rest}");
+        let home = PathBuf::from(home);
+        if let Ok(rest) = path.strip_prefix(&home) {
+            return if rest.as_os_str().is_empty() {
+                "~".to_string()
+            } else {
+                format!("~/{}", rest.display())
+            };
         }
     }
-    path.to_string()
+    path.display().to_string()
 }
 
 impl App {
