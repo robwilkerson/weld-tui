@@ -46,7 +46,10 @@ pub fn handle_key(app: &mut App, code: KeyCode) {
             app.scroll_y = app.scroll_y.saturating_sub(1);
         }
         KeyCode::Char('l') | KeyCode::Right => {
-            app.scroll_x = app.scroll_x.saturating_add(2).min(max_x);
+            app.scroll_x = app
+                .scroll_x
+                .saturating_add(2)
+                .min(max_x.saturating_sub(app.viewport_width));
         }
         KeyCode::Char('h') | KeyCode::Left => {
             app.scroll_x = app.scroll_x.saturating_sub(2);
@@ -170,6 +173,22 @@ mod tests {
         handle_key(&mut app, KeyCode::Char('g'));
 
         assert_eq!(app.scroll_y, 0);
+    }
+
+    #[test]
+    fn l_and_dollar_agree_on_max_scroll() {
+        let long = "x".repeat(100);
+        let mut app = test_app(&[&long], &["short"], (40, 10));
+
+        handle_key(&mut app, KeyCode::Char('$'));
+        let dollar_pos = app.scroll_x;
+
+        app.scroll_x = 0;
+        for _ in 0..200 {
+            handle_key(&mut app, KeyCode::Char('l'));
+        }
+
+        assert_eq!(app.scroll_x, dollar_pos, "l max should equal $ position");
     }
 
     #[test]
