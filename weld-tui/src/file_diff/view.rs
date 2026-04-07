@@ -4,22 +4,13 @@ use ratatui::style::Style;
 use ratatui::text::Span;
 use ratatui::widgets::{Block, Borders, Paragraph};
 
+use weld_core::diff::BlockKind;
+use weld_core::display::DisplayRow;
+
 use crate::app::App;
 use crate::theme::Theme;
 
-/// Data needed to render one side of the diff.
-struct PaneData<'a> {
-    dir: &'a str,
-    filename: &'a str,
-    lines: &'a [String],
-    scroll_y: u16,
-    scroll_x: u16,
-    digit_width: usize,
-    max_lines: usize,
-}
-
 /// Expand tabs to spaces for display, respecting tab stops.
-/// The original content is never modified — this is render-only.
 const TAB_WIDTH: usize = 4;
 
 pub fn expand_tabs(s: &str) -> String {
@@ -38,41 +29,134 @@ pub fn expand_tabs(s: &str) -> String {
     result
 }
 
-/// Render a file side: header block + content block with line number gutter.
+/// Gutter + code lines for one side of the diff.
+struct SideLines {
+    gutter: Vec<ratatui::text::Line<'static>>,
+    code: Vec<ratatui::text::Line<'static>>,
+}
+
+#[derive(Clone, Copy)]
+enum Side {
+    Left,
+    Right,
+}
+
+fn build_side_lines(
+    display_rows: &[DisplayRow],
+    lines: &[String],
+    side: Side,
+    digit_width: usize,
+    gutter_width: u16,
+    theme: &Theme,
+) -> SideLines {
+    let mut gutter = Vec::with_capacity(display_rows.len());
+    let mut code = Vec::with_capacity(display_rows.len());
+
+    for row in display_rows {
+        let line_idx = match side {
+            Side::Left => row.left_line,
+            Side::Right => row.right_line,
+        };
+
+        let is_padding = line_idx.is_none();
+
+        let bg = match side {
+            Side::Left => match row.kind {
+                BlockKind::Equal => theme.bg,
+                BlockKind::Delete => theme.diff_delete_bg,
+                BlockKind::Insert => theme.diff_insert_bg,
+                BlockKind::Replace if is_padding => theme.diff_insert_bg,
+                BlockKind::Replace => theme.diff_delete_bg,
+            },
+            Side::Right => match row.kind {
+                BlockKind::Equal => theme.bg,
+                BlockKind::Delete => theme.diff_delete_bg,
+                BlockKind::Insert => theme.diff_insert_bg,
+                BlockKind::Replace if is_padding => theme.diff_delete_bg,
+                BlockKind::Replace => theme.diff_insert_bg,
+            },
+        };
+
+        // Gutter
+        let gutter_bg = if row.kind == BlockKind::Equal {
+            theme.gutter_bg
+        } else {
+            bg
+        };
+        let gutter_style = Style::default().fg(theme.line_number_fg).bg(gutter_bg);
+
+        if let Some(idx) = line_idx {
+            gutter.push(ratatui::text::Line::from(Span::styled(
+                format!(" {:>width$} ", idx + 1, width = digit_width),
+                gutter_style,
+            )));
+        } else {
+            gutter.push(ratatui::text::Line::from(Span::styled(
+                " ".repeat(gutter_width as usize),
+                gutter_style,
+            )));
+        }
+
+        // Code
+        let code_style = Style::default().fg(theme.fg).bg(bg);
+        if let Some(idx) = line_idx {
+            let expanded = expand_tabs(&lines[idx]);
+            code.push(ratatui::text::Line::from(Span::styled(
+                format!(" {}", expanded),
+                code_style,
+            )));
+        } else {
+            code.push(ratatui::text::Line::from(Span::styled(
+                " ".to_string(),
+                code_style,
+            )));
+        }
+    }
+
+    SideLines { gutter, code }
+}
+
+/// Render a file side using display rows.
 fn render_file_pane(
     frame: &mut Frame,
     area: ratatui::layout::Rect,
-    pane: &PaneData,
+    dir: &str,
+    filename: &str,
+    lines: &[String],
+    display_rows: &[DisplayRow],
+    side: Side,
+    scroll_y: u16,
+    scroll_x: u16,
+    digit_width: usize,
     theme: &Theme,
 ) {
     let border_style = Style::default().fg(theme.gutter_bg);
 
-    // Two blocks stacked directly — their adjacent borders create a thin gap
     let [header_area, content_area] = Layout::vertical([
-        Constraint::Length(3), // border + filename + border
+        Constraint::Length(3),
         Constraint::Min(0),
     ])
     .areas(area);
 
-    // Header block — directory as border title, filename as content
+    // Header
     let header_block = Block::default()
         .borders(Borders::ALL)
         .border_style(border_style)
         .title(Span::styled(
-            format!(" {} ", pane.dir),
+            format!(" {} ", dir),
             Style::default().fg(theme.status_bar_fg),
         ))
         .style(Style::default().bg(theme.bg));
     frame.render_widget(
         Paragraph::new(Span::styled(
-            format!(" {}", pane.filename),
+            format!(" {}", filename),
             Style::default().fg(theme.header_fg),
         ))
         .block(header_block),
         header_area,
     );
 
-    // Content pane — full borders, 1-cell gap on all sides (consistent).
+    // Content
     let content_block = Block::default()
         .borders(Borders::ALL)
         .border_style(border_style)
@@ -80,51 +164,18 @@ fn render_file_pane(
     let inner = content_block.inner(content_area);
     frame.render_widget(content_block, content_area);
 
-    let lines = pane.lines;
-    let digit_width = pane.digit_width;
-    let gutter_width = (digit_width + 2) as u16; // 1 pad each side
-
-    // Split inner area: fixed gutter | scrollable code
+    let gutter_width = (digit_width + 2) as u16;
     let [gutter_area, code_area] =
         Layout::horizontal([Constraint::Length(gutter_width), Constraint::Min(0)]).areas(inner);
 
-    // Gutter — fixed, scrolls only vertically (synced with code)
-    let gutter_style = Style::default()
-        .fg(theme.line_number_fg)
-        .bg(theme.gutter_bg);
-    let visible_rows = gutter_area.height as usize;
-    let total_rows = pane.max_lines.max(visible_rows);
-    let gutter_lines: Vec<ratatui::text::Line> = (0..total_rows)
-        .map(|i| {
-            if i < lines.len() {
-                ratatui::text::Line::from(Span::styled(
-                    format!(" {:>width$} ", i + 1, width = digit_width),
-                    gutter_style,
-                ))
-            } else {
-                ratatui::text::Line::from(Span::styled(
-                    " ".repeat(gutter_width as usize),
-                    gutter_style,
-                ))
-            }
-        })
-        .collect();
+    let side_lines = build_side_lines(display_rows, lines, side, digit_width, gutter_width, theme);
+
     frame.render_widget(
-        Paragraph::new(gutter_lines).scroll((pane.scroll_y, 0)),
+        Paragraph::new(side_lines.gutter).scroll((scroll_y, 0)),
         gutter_area,
     );
-
-    // Code — scrolls both axes
-    let content_style = Style::default().fg(theme.fg);
-    let code_lines: Vec<ratatui::text::Line> = lines
-        .iter()
-        .map(|l| {
-            let expanded = expand_tabs(l);
-            ratatui::text::Line::from(Span::styled(format!(" {}", expanded), content_style))
-        })
-        .collect();
     frame.render_widget(
-        Paragraph::new(code_lines).scroll((pane.scroll_y, pane.scroll_x)),
+        Paragraph::new(side_lines.code).scroll((scroll_y, scroll_x)),
         code_area,
     );
 }
@@ -133,11 +184,9 @@ fn render_file_pane(
 pub fn draw(frame: &mut Frame, app: &mut App) {
     let theme = &app.theme;
 
-    // Outer vertical: body (fill) | status bar (1)
     let [body, status] =
         Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).areas(frame.area());
 
-    // Body: left side | gap | right side
     let [left_area, right_area] =
         Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
             .spacing(1)
@@ -150,26 +199,32 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         .max(app.right_content.lines.len());
     let digit_width = max_lines.to_string().len().max(2);
 
-    let left_pane = PaneData {
-        dir: &app.left_dir,
-        filename: &app.left_filename,
-        lines: &app.left_content.lines,
-        scroll_y: app.scroll_y,
-        scroll_x: app.scroll_x,
+    render_file_pane(
+        frame,
+        left_area,
+        &app.left_dir,
+        &app.left_filename,
+        &app.left_content.lines,
+        &app.display_rows,
+        Side::Left,
+        app.scroll_y,
+        app.scroll_x,
         digit_width,
-        max_lines,
-    };
-    let right_pane = PaneData {
-        dir: &app.right_dir,
-        filename: &app.right_filename,
-        lines: &app.right_content.lines,
-        scroll_y: app.scroll_y,
-        scroll_x: app.scroll_x,
+        theme,
+    );
+    render_file_pane(
+        frame,
+        right_area,
+        &app.right_dir,
+        &app.right_filename,
+        &app.right_content.lines,
+        &app.display_rows,
+        Side::Right,
+        app.scroll_y,
+        app.scroll_x,
         digit_width,
-        max_lines,
-    };
-    render_file_pane(frame, left_area, &left_pane, theme);
-    render_file_pane(frame, right_area, &right_pane, theme);
+        theme,
+    );
 
     // Store viewport dimensions for scroll clamping.
     let header_height = 3u16;
@@ -183,11 +238,21 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     app.viewport_height = inner_height;
     app.viewport_width = inner_code_width;
 
-    // Status bar — dim keybinding hints
+    // Status bar
+    let change_count = app.diff.change_blocks().len();
+    let hint_text = if change_count == 0 {
+        " Files are identical  [q → quit]".to_string()
+    } else {
+        format!(
+            " {} change{}  [q → quit]",
+            change_count,
+            if change_count == 1 { "" } else { "s" }
+        )
+    };
     let hint_style = Style::default().fg(theme.status_bar_fg);
     frame.render_widget(
         Paragraph::new(ratatui::text::Line::from(vec![Span::styled(
-            " [q → quit]",
+            hint_text,
             hint_style,
         )]))
         .alignment(Alignment::Center),
