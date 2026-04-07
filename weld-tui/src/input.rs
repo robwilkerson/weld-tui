@@ -5,27 +5,31 @@ use crate::file_diff::view::expand_tabs;
 
 /// Handle a key press, updating app state.
 pub fn handle_key(app: &mut App, code: KeyCode) {
-    let max_y = app
-        .left_content
-        .lines
-        .len()
-        .max(app.right_content.lines.len())
-        .saturating_sub(1) as u16;
+    let max_y = app.display_rows.len().saturating_sub(1) as u16;
     let scroll_y_max = max_y.saturating_sub(app.viewport_height.saturating_sub(1));
 
-    // Horizontal max based on visible lines only, not entire file.
+    // Horizontal max based on visible display rows only.
     let visible_start = app.scroll_y as usize;
-    let visible_end = visible_start + app.viewport_height as usize;
-    let max_x = app
-        .left_content
-        .lines
-        .iter()
-        .enumerate()
-        .chain(app.right_content.lines.iter().enumerate())
-        .filter(|(i, _)| *i >= visible_start && *i < visible_end)
-        .map(|(_, l)| expand_tabs(l).len() + 1) // +1 for leading space in rendered content
-        .max()
-        .unwrap_or(0) as u16;
+    let visible_end = (visible_start + app.viewport_height as usize).min(app.display_rows.len());
+    let max_x = if visible_start < visible_end {
+        app.display_rows[visible_start..visible_end]
+            .iter()
+            .map(|row| {
+                let left_len = row
+                    .left_line
+                    .map(|i| expand_tabs(&app.left_content.lines[i]).len() + 1)
+                    .unwrap_or(0);
+                let right_len = row
+                    .right_line
+                    .map(|i| expand_tabs(&app.right_content.lines[i]).len() + 1)
+                    .unwrap_or(0);
+                left_len.max(right_len)
+            })
+            .max()
+            .unwrap_or(0) as u16
+    } else {
+        0
+    };
 
     // Handle `gg` — two consecutive `g` presses jump to top
     if app.pending_g {
@@ -34,7 +38,6 @@ pub fn handle_key(app: &mut App, code: KeyCode) {
             app.scroll_y = 0;
             return;
         }
-        // First `g` was not followed by `g` — fall through to normal handling
     }
 
     match code {
@@ -74,6 +77,8 @@ pub fn handle_key(app: &mut App, code: KeyCode) {
 mod tests {
     use super::*;
     use std::path::PathBuf;
+    use weld_core::diff::DiffResult;
+    use weld_core::display;
     use weld_core::file_io::{FileContent, LineEnding};
 
     use crate::theme::Theme;
@@ -85,6 +90,11 @@ mod tests {
             line_ending: LineEnding::Lf,
             has_trailing_newline: true,
         };
+        let left_content = make_content(left_lines);
+        let right_content = make_content(right_lines);
+        let diff = DiffResult::compute(&left_content, &right_content);
+        let display_rows = display::build_display_rows(&diff);
+
         App {
             theme: Theme::default(),
             running: true,
@@ -92,8 +102,10 @@ mod tests {
             left_filename: String::new(),
             right_dir: String::new(),
             right_filename: String::new(),
-            left_content: make_content(left_lines),
-            right_content: make_content(right_lines),
+            left_content,
+            right_content,
+            diff,
+            display_rows,
             scroll_y: 0,
             scroll_x: 0,
             viewport_height: viewport.1,
@@ -104,7 +116,6 @@ mod tests {
 
     #[test]
     fn j_caps_at_viewport_bottom() {
-        // 20 lines, viewport shows 10 rows → max scroll_y = 20 - 10 = 10
         let lines = vec!["line"; 20];
         let mut app = test_app(&lines, &lines, (40, 10));
 
@@ -112,6 +123,7 @@ mod tests {
             handle_key(&mut app, KeyCode::Char('j'));
         }
 
+        // 20 identical lines = 20 display rows. max scroll = 20 - 10 = 10
         assert_eq!(app.scroll_y, 10);
     }
 
@@ -133,14 +145,12 @@ mod tests {
 
     #[test]
     fn dollar_uses_visible_lines_only() {
-        // Short visible lines at top, long line at index 50 (not visible)
         let mut left: Vec<&str> = vec!["short"; 51];
         let long = &"a".repeat(200);
         left[50] = long;
 
-        let mut app = test_app(&left, &["tiny"; 5], (40, 10));
+        let mut app = test_app(&left, &["short"; 51], (40, 10));
 
-        // Viewport shows lines 0-9, all short
         handle_key(&mut app, KeyCode::Char('$'));
 
         assert_eq!(app.scroll_x, 0, "$ should not scroll for short visible lines");
@@ -153,9 +163,8 @@ mod tests {
         lines[15] = long;
         let line_refs: Vec<&str> = lines.iter().map(|s| s.as_str()).collect();
 
-        let mut app = test_app(&line_refs, &vec!["tiny"; 20], (40, 10));
+        let mut app = test_app(&line_refs, &line_refs, (40, 10));
 
-        // Scroll so line 15 is visible (viewport shows lines 10-19)
         app.scroll_y = 10;
         handle_key(&mut app, KeyCode::Char('$'));
 
@@ -178,7 +187,7 @@ mod tests {
     #[test]
     fn l_and_dollar_agree_on_max_scroll() {
         let long = "x".repeat(100);
-        let mut app = test_app(&[&long], &["short"], (40, 10));
+        let mut app = test_app(&[&long], &[&long], (40, 10));
 
         handle_key(&mut app, KeyCode::Char('$'));
         let dollar_pos = app.scroll_x;
@@ -201,5 +210,15 @@ mod tests {
         handle_key(&mut app, KeyCode::Char('j'));
 
         assert_eq!(app.scroll_y, 31, "g then j should just move down");
+    }
+
+    #[test]
+    fn display_rows_include_padding_for_inserts() {
+        let left = vec!["a", "b", "c"];
+        let right = vec!["a", "x", "y", "b", "c"];
+        let app = test_app(&left, &right, (40, 20));
+
+        // Display rows should include padding for alignment
+        assert!(app.display_rows.len() >= 5);
     }
 }
