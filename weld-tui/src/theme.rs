@@ -60,10 +60,10 @@ impl Default for Theme {
             gutter_dot: Color::Rgb(245, 169, 127),                              // Peach
             scrollbar_track: Color::Rgb(110, 115, 141),                         // Overlay0
             scrollbar_thumb: Color::Rgb(147, 154, 183),                         // Overlay2
-            diff_delete_bg: Color::Rgb(237, 135, 150),                          // Red
-            diff_delete_emphasis_bg: Color::Rgb(238, 153, 160),                 // Maroon
-            diff_insert_bg: Color::Rgb(166, 218, 149),                          // Green
-            diff_insert_emphasis_bg: Color::Rgb(139, 213, 202),                 // Teal
+            diff_delete_bg: Color::Rgb(76, 50, 62),                             // Red blended into Base
+            diff_delete_emphasis_bg: Color::Rgb(120, 60, 75),                   // Stronger red for char-level
+            diff_insert_bg: Color::Rgb(48, 64, 58),                             // Green blended into Base
+            diff_insert_emphasis_bg: Color::Rgb(55, 90, 75),                    // Stronger green for char-level
             active_block_style: Style::default().fg(Color::Rgb(245, 169, 127)), // Peach
             overlay_bg: Color::Rgb(30, 32, 48),                                 // Mantle
             overlay_fg: Color::Rgb(202, 211, 245),                              // Text
