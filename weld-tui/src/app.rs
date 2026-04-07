@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 
-use weld_core::file_io::FileContent;
+use weld_core::diff::DiffResult;
+use weld_core::display::DisplayRow;
+use weld_core::file_io::{FileContent, shorten_dir};
 
 use crate::theme::Theme;
 
@@ -14,6 +16,10 @@ pub struct App {
     pub right_filename: String,
     pub left_content: FileContent,
     pub right_content: FileContent,
+    /// Computed diff between left and right files.
+    pub diff: DiffResult,
+    /// Display rows: flattened diff blocks with alignment padding.
+    pub display_rows: Vec<DisplayRow>,
     /// Synchronized vertical scroll offset.
     pub scroll_y: u16,
     /// Synchronized horizontal scroll offset.
@@ -26,28 +32,13 @@ pub struct App {
     pub pending_g: bool,
 }
 
-/// Replace the home directory prefix with ~ for display.
-/// Uses path-based prefix matching to avoid false positives
-/// (e.g., /Users/al matching /Users/alice).
-fn shorten_dir(path: &str) -> String {
-    let path = std::path::Path::new(path);
-    if let Some(home) = std::env::var_os("HOME") {
-        let home = PathBuf::from(home);
-        if let Ok(rest) = path.strip_prefix(&home) {
-            return if rest.as_os_str().is_empty() {
-                "~".to_string()
-            } else {
-                format!("~/{}", rest.display())
-            };
-        }
-    }
-    path.display().to_string()
-}
-
 impl App {
     pub fn new(left: PathBuf, right: PathBuf) -> Result<Self, std::io::Error> {
         let left_content = FileContent::load(&left)?;
         let right_content = FileContent::load(&right)?;
+
+        let diff = DiffResult::compute(&left_content, &right_content);
+        let display_rows = weld_core::display::build_display_rows(&diff);
 
         let left_abs = left.canonicalize().unwrap_or(left);
         let right_abs = right.canonicalize().unwrap_or(right);
@@ -77,6 +68,8 @@ impl App {
                 .unwrap_or_default(),
             left_content,
             right_content,
+            diff,
+            display_rows,
             scroll_y: 0,
             scroll_x: 0,
             viewport_height: 0,
