@@ -52,9 +52,6 @@ fn main_loop(
             && key.kind == KeyEventKind::Press
         {
             input::handle_key(app, key.code);
-        } else {
-            // Clear pending key state (e.g., `gg`) on non-key events like resize
-            app.pending_g = false;
         }
     }
     Ok(())

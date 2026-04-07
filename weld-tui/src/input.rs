@@ -159,4 +159,28 @@ mod tests {
         // max_x = 101 (100 + leading space), viewport_width = 40 → scroll_x = 61
         assert_eq!(app.scroll_x, 61, "$ should use the long line now visible");
     }
+
+    #[test]
+    fn gg_jumps_to_top() {
+        let lines = vec!["line"; 50];
+        let mut app = test_app(&lines, &lines, (40, 10));
+        app.scroll_y = 30;
+
+        handle_key(&mut app, KeyCode::Char('g'));
+        handle_key(&mut app, KeyCode::Char('g'));
+
+        assert_eq!(app.scroll_y, 0);
+    }
+
+    #[test]
+    fn g_then_non_g_does_not_jump() {
+        let lines = vec!["line"; 50];
+        let mut app = test_app(&lines, &lines, (40, 10));
+        app.scroll_y = 30;
+
+        handle_key(&mut app, KeyCode::Char('g'));
+        handle_key(&mut app, KeyCode::Char('j'));
+
+        assert_eq!(app.scroll_y, 31, "g then j should just move down");
+    }
 }
