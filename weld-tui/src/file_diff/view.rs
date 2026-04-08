@@ -97,21 +97,23 @@ fn build_side_lines(
     SideLines { gutter, code }
 }
 
-/// Render a file side using display rows.
-fn render_file_pane(
-    frame: &mut Frame,
-    area: ratatui::layout::Rect,
-    dir: &str,
-    filename: &str,
-    lines: &[String],
-    display_rows: &[DisplayRow],
+/// Shared parameters for rendering a file pane.
+struct PaneContext<'a> {
+    dir: &'a str,
+    filename: &'a str,
+    lines: &'a [String],
+    display_rows: &'a [DisplayRow],
     side: Side,
     scroll_y: u16,
     scroll_x: u16,
     digit_width: usize,
     max_content_width: usize,
-    theme: &Theme,
-) {
+    theme: &'a Theme,
+}
+
+/// Render a file side using display rows.
+fn render_file_pane(frame: &mut Frame, area: ratatui::layout::Rect, ctx: &PaneContext) {
+    let theme = ctx.theme;
     let border_style = Style::default().fg(theme.gutter_bg);
 
     let [header_area, content_area] =
@@ -122,13 +124,13 @@ fn render_file_pane(
         .borders(Borders::ALL)
         .border_style(border_style)
         .title(Span::styled(
-            format!(" {} ", dir),
+            format!(" {} ", ctx.dir),
             Style::default().fg(theme.status_bar_fg),
         ))
         .style(Style::default().bg(theme.bg));
     frame.render_widget(
         Paragraph::new(Span::styled(
-            format!(" {}", filename),
+            format!(" {}", ctx.filename),
             Style::default().fg(theme.header_fg),
         ))
         .block(header_block),
@@ -143,26 +145,26 @@ fn render_file_pane(
     let inner = content_block.inner(content_area);
     frame.render_widget(content_block, content_area);
 
-    let gutter_width = (digit_width + 2) as u16;
+    let gutter_width = (ctx.digit_width + 2) as u16;
     let [gutter_area, code_area] =
         Layout::horizontal([Constraint::Length(gutter_width), Constraint::Min(0)]).areas(inner);
 
     let side_lines = build_side_lines(
-        display_rows,
-        lines,
-        side,
-        digit_width,
+        ctx.display_rows,
+        ctx.lines,
+        ctx.side,
+        ctx.digit_width,
         gutter_width,
-        max_content_width,
+        ctx.max_content_width,
         theme,
     );
 
     frame.render_widget(
-        Paragraph::new(side_lines.gutter).scroll((scroll_y, 0)),
+        Paragraph::new(side_lines.gutter).scroll((ctx.scroll_y, 0)),
         gutter_area,
     );
     frame.render_widget(
-        Paragraph::new(side_lines.code).scroll((scroll_y, scroll_x)),
+        Paragraph::new(side_lines.code).scroll((ctx.scroll_y, ctx.scroll_x)),
         code_area,
     );
 }
@@ -199,30 +201,34 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     render_file_pane(
         frame,
         left_area,
-        &app.left_dir,
-        &app.left_filename,
-        &app.left_content.lines,
-        &app.display_rows,
-        Side::Left,
-        app.scroll_y,
-        app.scroll_x,
-        digit_width,
-        max_content_width,
-        theme,
+        &PaneContext {
+            dir: &app.left_dir,
+            filename: &app.left_filename,
+            lines: &app.left_content.lines,
+            display_rows: &app.display_rows,
+            side: Side::Left,
+            scroll_y: app.scroll_y,
+            scroll_x: app.scroll_x,
+            digit_width,
+            max_content_width,
+            theme,
+        },
     );
     render_file_pane(
         frame,
         right_area,
-        &app.right_dir,
-        &app.right_filename,
-        &app.right_content.lines,
-        &app.display_rows,
-        Side::Right,
-        app.scroll_y,
-        app.scroll_x,
-        digit_width,
-        max_content_width,
-        theme,
+        &PaneContext {
+            dir: &app.right_dir,
+            filename: &app.right_filename,
+            lines: &app.right_content.lines,
+            display_rows: &app.display_rows,
+            side: Side::Right,
+            scroll_y: app.scroll_y,
+            scroll_x: app.scroll_x,
+            digit_width,
+            max_content_width,
+            theme,
+        },
     );
 
     // Store viewport dimensions for scroll clamping.

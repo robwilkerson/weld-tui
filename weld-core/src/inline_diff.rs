@@ -65,11 +65,11 @@ impl InlineDiff {
 fn merge_segments(segments: Vec<InlineSegment>) -> Vec<InlineSegment> {
     let mut merged: Vec<InlineSegment> = Vec::new();
     for seg in segments {
-        if let Some(last) = merged.last_mut() {
-            if last.kind == seg.kind {
-                last.text.push_str(&seg.text);
-                continue;
-            }
+        if let Some(last) = merged.last_mut()
+            && last.kind == seg.kind
+        {
+            last.text.push_str(&seg.text);
+            continue;
         }
         merged.push(seg);
     }
