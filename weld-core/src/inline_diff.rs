@@ -91,8 +91,18 @@ mod tests {
     #[test]
     fn completely_different_lines() {
         let result = InlineDiff::compute("aaa", "bbb");
-        assert!(result.left_segments.iter().any(|s| s.kind == InlineKind::Changed));
-        assert!(result.right_segments.iter().any(|s| s.kind == InlineKind::Changed));
+        assert!(
+            result
+                .left_segments
+                .iter()
+                .any(|s| s.kind == InlineKind::Changed)
+        );
+        assert!(
+            result
+                .right_segments
+                .iter()
+                .any(|s| s.kind == InlineKind::Changed)
+        );
     }
 
     #[test]
@@ -100,20 +110,41 @@ mod tests {
         let result = InlineDiff::compute("App::new()", "App::with_config(&config)");
         assert!(result.left_segments.len() >= 2);
         assert_eq!(result.left_segments[0].kind, InlineKind::Equal);
-        assert!(result.left_segments.iter().any(|s| s.kind == InlineKind::Changed));
+        assert!(
+            result
+                .left_segments
+                .iter()
+                .any(|s| s.kind == InlineKind::Changed)
+        );
     }
 
     #[test]
     fn empty_left_line() {
         let result = InlineDiff::compute("", "added text");
-        assert!(result.left_segments.is_empty() || result.left_segments.iter().all(|s| s.text.is_empty()));
-        assert!(result.right_segments.iter().any(|s| s.kind == InlineKind::Changed));
+        assert!(
+            result.left_segments.is_empty()
+                || result.left_segments.iter().all(|s| s.text.is_empty())
+        );
+        assert!(
+            result
+                .right_segments
+                .iter()
+                .any(|s| s.kind == InlineKind::Changed)
+        );
     }
 
     #[test]
     fn empty_right_line() {
         let result = InlineDiff::compute("removed text", "");
-        assert!(result.left_segments.iter().any(|s| s.kind == InlineKind::Changed));
-        assert!(result.right_segments.is_empty() || result.right_segments.iter().all(|s| s.text.is_empty()));
+        assert!(
+            result
+                .left_segments
+                .iter()
+                .any(|s| s.kind == InlineKind::Changed)
+        );
+        assert!(
+            result.right_segments.is_empty()
+                || result.right_segments.iter().all(|s| s.text.is_empty())
+        );
     }
 }

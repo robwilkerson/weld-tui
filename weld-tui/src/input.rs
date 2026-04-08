@@ -141,7 +141,10 @@ mod tests {
         handle_key(&mut app, KeyCode::Char('$'));
 
         // Global max = 201 (200 + leading space), viewport = 40 → scroll_x = 161
-        assert_eq!(app.scroll_x, 161, "$ should use global max even if long line is off-screen");
+        assert_eq!(
+            app.scroll_x, 161,
+            "$ should use global max even if long line is off-screen"
+        );
     }
 
     #[test]

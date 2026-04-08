@@ -56,11 +56,11 @@ impl Default for Theme {
             gutter_dot: Color::Rgb(245, 169, 127),                              // Peach
             scrollbar_track: Color::Rgb(110, 115, 141),                         // Overlay0
             scrollbar_thumb: Color::Rgb(147, 154, 183),                         // Overlay2
-            diff_bg: Color::Rgb(54, 58, 79),                                     // Surface0 — subtle diff tint
-            diff_emphasis_bg: Color::Rgb(73, 77, 100),                          // Surface1 — stronger for char-level
+            diff_bg: Color::Rgb(54, 58, 79), // Surface0 — subtle diff tint
+            diff_emphasis_bg: Color::Rgb(73, 77, 100), // Surface1 — stronger for char-level
             active_block_style: Style::default().fg(Color::Rgb(245, 169, 127)), // Peach
-            overlay_bg: Color::Rgb(30, 32, 48),                                 // Mantle
-            overlay_fg: Color::Rgb(202, 211, 245),                              // Text
+            overlay_bg: Color::Rgb(30, 32, 48), // Mantle
+            overlay_fg: Color::Rgb(202, 211, 245), // Text
         }
     }
 }

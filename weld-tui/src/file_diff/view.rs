@@ -63,7 +63,9 @@ fn build_side_lines(
         let bg = if is_diff { theme.diff_bg } else { theme.bg };
 
         // Gutter always uses gutter_bg
-        let gutter_style = Style::default().fg(theme.line_number_fg).bg(theme.gutter_bg);
+        let gutter_style = Style::default()
+            .fg(theme.line_number_fg)
+            .bg(theme.gutter_bg);
 
         if let Some(idx) = line_idx {
             gutter.push(ratatui::text::Line::from(Span::styled(
@@ -112,11 +114,8 @@ fn render_file_pane(
 ) {
     let border_style = Style::default().fg(theme.gutter_bg);
 
-    let [header_area, content_area] = Layout::vertical([
-        Constraint::Length(3),
-        Constraint::Min(0),
-    ])
-    .areas(area);
+    let [header_area, content_area] =
+        Layout::vertical([Constraint::Length(3), Constraint::Min(0)]).areas(area);
 
     // Header
     let header_block = Block::default()
@@ -148,7 +147,15 @@ fn render_file_pane(
     let [gutter_area, code_area] =
         Layout::horizontal([Constraint::Length(gutter_width), Constraint::Min(0)]).areas(inner);
 
-    let side_lines = build_side_lines(display_rows, lines, side, digit_width, gutter_width, max_content_width, theme);
+    let side_lines = build_side_lines(
+        display_rows,
+        lines,
+        side,
+        digit_width,
+        gutter_width,
+        max_content_width,
+        theme,
+    );
 
     frame.render_widget(
         Paragraph::new(side_lines.gutter).scroll((scroll_y, 0)),
@@ -244,8 +251,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     let hint_style = Style::default().fg(theme.status_bar_fg);
     frame.render_widget(
         Paragraph::new(ratatui::text::Line::from(vec![Span::styled(
-            hint_text,
-            hint_style,
+            hint_text, hint_style,
         )]))
         .alignment(Alignment::Center),
         status,
