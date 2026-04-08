@@ -46,7 +46,7 @@ pub fn viewport_indicator(
 
     let top = (scroll_y as u32) * mh / total;
     let height = (viewport_height as u32) * mh / total;
-    let height = height.max(1).min(mh - top);
+    let height = height.max(1).min(mh.saturating_sub(top).max(1));
 
     (top as u16, height as u16)
 }
@@ -90,7 +90,14 @@ pub fn render(
         minimap_height,
     );
     let vp_bottom = vp_top + vp_height.saturating_sub(1);
-    let vp_style = Style::default().fg(theme.minimap_viewport_fg);
+    let vp_fg = theme.minimap_viewport_fg;
+
+    // Helper: set a box-drawing symbol while preserving the existing background.
+    let mut set_vp_cell = |x: u16, y: u16, symbol: &str| {
+        let cell = &mut buf[(x, y)];
+        cell.set_symbol(symbol);
+        cell.fg = vp_fg;
+    };
 
     for row in vp_top..=vp_bottom {
         let y = area.y + row;
@@ -100,29 +107,29 @@ pub fn render(
 
         // Left edge
         if row == vp_top {
-            buf[(area.x, y)].set_symbol("┌").set_style(vp_style);
+            set_vp_cell(area.x, y, "┌");
         } else if row == vp_bottom {
-            buf[(area.x, y)].set_symbol("└").set_style(vp_style);
+            set_vp_cell(area.x, y, "└");
         } else {
-            buf[(area.x, y)].set_symbol("│").set_style(vp_style);
+            set_vp_cell(area.x, y, "│");
         }
 
         // Right edge (only if width > 1)
         if area.width > 1 {
             let rx = area.x + area.width - 1;
             if row == vp_top {
-                buf[(rx, y)].set_symbol("┐").set_style(vp_style);
+                set_vp_cell(rx, y, "┐");
             } else if row == vp_bottom {
-                buf[(rx, y)].set_symbol("┘").set_style(vp_style);
+                set_vp_cell(rx, y, "┘");
             } else {
-                buf[(rx, y)].set_symbol("│").set_style(vp_style);
+                set_vp_cell(rx, y, "│");
             }
         }
 
         // Top/bottom edges (fill between corners)
         if (row == vp_top || row == vp_bottom) && area.width > 2 {
             for col in 1..(area.width - 1) {
-                buf[(area.x + col, y)].set_symbol("─").set_style(vp_style);
+                set_vp_cell(area.x + col, y, "─");
             }
         }
     }
