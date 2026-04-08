@@ -188,15 +188,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         .max(app.right_content.lines.len());
     let digit_width = max_lines.to_string().len().max(2);
 
-    // Max content width across both panes so diff highlights align.
-    let max_content_width = app
-        .left_content
-        .lines
-        .iter()
-        .chain(app.right_content.lines.iter())
-        .map(|l| expand_tabs(l).len() + 1)
-        .max()
-        .unwrap_or(0);
+    let max_content_width = app.max_content_width;
 
     render_file_pane(
         frame,
@@ -244,7 +236,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     app.viewport_width = inner_code_width;
 
     // Status bar
-    let change_count = app.diff.change_blocks().len();
+    let change_count = app.change_count;
     let hint_text = if change_count == 0 {
         " Files are identical  [q → quit]".to_string()
     } else {

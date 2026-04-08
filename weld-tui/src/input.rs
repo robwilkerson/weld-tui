@@ -1,22 +1,13 @@
 use crossterm::event::KeyCode;
 
 use crate::app::App;
-use crate::file_diff::view::expand_tabs;
 
 /// Handle a key press, updating app state.
 pub fn handle_key(app: &mut App, code: KeyCode) {
     let max_y = app.display_rows.len().saturating_sub(1) as u16;
     let scroll_y_max = max_y.saturating_sub(app.viewport_height.saturating_sub(1));
 
-    // Horizontal max: longest line across both files (matches renderer padding).
-    let max_x = app
-        .left_content
-        .lines
-        .iter()
-        .chain(app.right_content.lines.iter())
-        .map(|l| expand_tabs(l).len() + 1)
-        .max()
-        .unwrap_or(0) as u16;
+    let max_x = app.max_content_width as u16;
 
     // Handle `gg` — two consecutive `g` presses jump to top
     if app.pending_g {
@@ -64,10 +55,11 @@ pub fn handle_key(app: &mut App, code: KeyCode) {
 mod tests {
     use super::*;
     use std::path::PathBuf;
-    use weld_core::diff::DiffResult;
+    use weld_core::diff::{BlockKind, DiffResult};
     use weld_core::display;
     use weld_core::file_io::{FileContent, LineEnding};
 
+    use crate::file_diff::view::expand_tabs;
     use crate::theme::Theme;
 
     fn test_app(left_lines: &[&str], right_lines: &[&str], viewport: (u16, u16)) -> App {
@@ -82,6 +74,20 @@ mod tests {
         let diff = DiffResult::compute(&left_content, &right_content);
         let display_rows = display::build_display_rows(&diff);
 
+        let max_content_width = left_content
+            .lines
+            .iter()
+            .chain(right_content.lines.iter())
+            .map(|l| expand_tabs(l).len() + 1)
+            .max()
+            .unwrap_or(0);
+
+        let change_count = diff
+            .blocks
+            .iter()
+            .filter(|b| b.kind != BlockKind::Equal)
+            .count();
+
         App {
             theme: Theme::default(),
             running: true,
@@ -93,6 +99,8 @@ mod tests {
             right_content,
             diff,
             display_rows,
+            max_content_width,
+            change_count,
             scroll_y: 0,
             scroll_x: 0,
             viewport_height: viewport.1,
