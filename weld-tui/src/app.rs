@@ -43,6 +43,8 @@ pub struct App {
     pub viewport_width: u16,
     /// Multi-key input state machine.
     pub input: InputState,
+    /// Width of the minimap bar in terminal columns (0 = hidden).
+    pub minimap_width: u16,
 }
 
 impl App {
@@ -104,6 +106,7 @@ impl App {
             viewport_height: 0,
             viewport_width: 0,
             input: InputState::default(),
+            minimap_width: 2,
         })
     }
 }
