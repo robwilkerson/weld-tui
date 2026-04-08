@@ -99,6 +99,24 @@ impl FileContent {
     }
 }
 
+/// Replace the home directory prefix with ~ for display.
+/// Uses path-based prefix matching to avoid false positives
+/// (e.g., /Users/al matching /Users/alice).
+pub fn shorten_dir(path: &str) -> String {
+    let path = Path::new(path);
+    if let Some(home) = std::env::var_os("HOME") {
+        let home = PathBuf::from(home);
+        if let Ok(rest) = path.strip_prefix(&home) {
+            return if rest.as_os_str().is_empty() {
+                "~".to_string()
+            } else {
+                format!("~/{}", rest.display())
+            };
+        }
+    }
+    path.display().to_string()
+}
+
 impl fmt::Display for FileContent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for line in &self.lines {
@@ -275,6 +293,32 @@ mod tests {
         content.save().unwrap();
         let raw = fs::read_to_string(&path).unwrap();
         assert_eq!(raw, "line1\r\nline2\r\nline3\r\n");
+    }
+
+    #[test]
+    fn shorten_dir_replaces_home() {
+        let home = std::env::var("HOME").unwrap();
+        let input = format!("{home}/projects/weld");
+        assert_eq!(shorten_dir(&input), "~/projects/weld");
+    }
+
+    #[test]
+    fn shorten_dir_home_alone() {
+        let home = std::env::var("HOME").unwrap();
+        assert_eq!(shorten_dir(&home), "~");
+    }
+
+    #[test]
+    fn shorten_dir_no_match() {
+        assert_eq!(shorten_dir("/tmp/other/path"), "/tmp/other/path");
+    }
+
+    #[test]
+    fn shorten_dir_no_false_prefix() {
+        // /Users/al should NOT match /Users/alice
+        let home = std::env::var("HOME").unwrap();
+        let fake = format!("{home}extra/something");
+        assert_eq!(shorten_dir(&fake), fake);
     }
 
     #[test]
