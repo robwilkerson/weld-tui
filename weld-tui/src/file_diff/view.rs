@@ -183,9 +183,9 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
 
     let max_lines = app
         .left_content
-        .lines
+        .lines()
         .len()
-        .max(app.right_content.lines.len());
+        .max(app.right_content.lines().len());
     let digit_width = max_lines.to_string().len().max(2);
 
     let max_content_width = app.max_content_width;
@@ -196,7 +196,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         &PaneContext {
             dir: &app.left_dir,
             filename: &app.left_filename,
-            lines: &app.left_content.lines,
+            lines: app.left_content.lines(),
             display_rows: &app.display_rows,
             side: Side::Left,
             scroll_y: app.scroll_y,
@@ -212,7 +212,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         &PaneContext {
             dir: &app.right_dir,
             filename: &app.right_filename,
-            lines: &app.right_content.lines,
+            lines: app.right_content.lines(),
             display_rows: &app.display_rows,
             side: Side::Right,
             scroll_y: app.scroll_y,

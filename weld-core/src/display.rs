@@ -9,13 +9,15 @@ pub struct DisplayRow {
     pub right_line: Option<usize>,
     /// The kind of diff block this row belongs to.
     pub kind: BlockKind,
+    /// Index of the originating DiffBlock in DiffResult.blocks.
+    pub block_index: usize,
 }
 
 /// Flatten diff blocks into a sequence of display rows with alignment padding.
 pub fn build_display_rows(diff: &DiffResult) -> Vec<DisplayRow> {
     let mut rows = Vec::new();
 
-    for block in &diff.blocks {
+    for (block_index, block) in diff.blocks.iter().enumerate() {
         match block.kind {
             BlockKind::Equal => {
                 for (i, j) in block.left_range.clone().zip(block.right_range.clone()) {
@@ -23,6 +25,7 @@ pub fn build_display_rows(diff: &DiffResult) -> Vec<DisplayRow> {
                         left_line: Some(i),
                         right_line: Some(j),
                         kind: BlockKind::Equal,
+                        block_index,
                     });
                 }
             }
@@ -32,6 +35,7 @@ pub fn build_display_rows(diff: &DiffResult) -> Vec<DisplayRow> {
                         left_line: Some(i),
                         right_line: None,
                         kind: BlockKind::Delete,
+                        block_index,
                     });
                 }
             }
@@ -41,6 +45,7 @@ pub fn build_display_rows(diff: &DiffResult) -> Vec<DisplayRow> {
                         left_line: None,
                         right_line: Some(j),
                         kind: BlockKind::Insert,
+                        block_index,
                     });
                 }
             }
@@ -64,6 +69,7 @@ pub fn build_display_rows(diff: &DiffResult) -> Vec<DisplayRow> {
                         left_line,
                         right_line,
                         kind: BlockKind::Replace,
+                        block_index,
                     });
                 }
             }

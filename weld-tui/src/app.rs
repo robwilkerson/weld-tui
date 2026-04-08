@@ -7,6 +7,13 @@ use weld_core::file_io::{FileContent, shorten_dir};
 use crate::file_diff::view::expand_tabs;
 use crate::theme::Theme;
 
+/// Tracks multi-key input sequences (e.g., `gg`, future counts/search).
+#[derive(Default)]
+pub struct InputState {
+    /// Whether the previous keypress was `g` (waiting for `gg`).
+    pub pending_g: bool,
+}
+
 /// Top-level application state.
 pub struct App {
     pub theme: Theme,
@@ -34,8 +41,8 @@ pub struct App {
     pub viewport_height: u16,
     /// Last-known viewport width (columns visible in code area).
     pub viewport_width: u16,
-    /// Whether the previous keypress was `g` (waiting for `gg`).
-    pub pending_g: bool,
+    /// Multi-key input state machine.
+    pub input: InputState,
 }
 
 impl App {
@@ -47,9 +54,9 @@ impl App {
         let display_rows = weld_core::display::build_display_rows(&diff);
 
         let max_content_width = left_content
-            .lines
+            .lines()
             .iter()
-            .chain(right_content.lines.iter())
+            .chain(right_content.lines().iter())
             .map(|l| expand_tabs(l).len() + 1)
             .max()
             .unwrap_or(0);
@@ -96,7 +103,7 @@ impl App {
             scroll_x: 0,
             viewport_height: 0,
             viewport_width: 0,
-            pending_g: false,
+            input: InputState::default(),
         })
     }
 }

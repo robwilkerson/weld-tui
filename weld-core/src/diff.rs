@@ -130,16 +130,9 @@ fn compute_inline_diffs_str(left_lines: &[&str], right_lines: &[&str]) -> Vec<In
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::file_io::LineEnding;
-    use std::path::PathBuf;
 
     fn make_content(lines: &[&str]) -> FileContent {
-        FileContent {
-            path: PathBuf::new(),
-            lines: lines.iter().map(|s| s.to_string()).collect(),
-            line_ending: LineEnding::Lf,
-            has_trailing_newline: !lines.is_empty(),
-        }
+        FileContent::from_lines(lines)
     }
 
     #[test]

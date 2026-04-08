@@ -10,8 +10,8 @@ pub fn handle_key(app: &mut App, code: KeyCode) {
     let max_x = app.max_content_width as u16;
 
     // Handle `gg` — two consecutive `g` presses jump to top
-    if app.pending_g {
-        app.pending_g = false;
+    if app.input.pending_g {
+        app.input.pending_g = false;
         if code == KeyCode::Char('g') {
             app.scroll_y = 0;
             return;
@@ -42,7 +42,7 @@ pub fn handle_key(app: &mut App, code: KeyCode) {
             app.scroll_x = max_x.saturating_sub(app.viewport_width);
         }
         KeyCode::Char('g') => {
-            app.pending_g = true;
+            app.input.pending_g = true;
         }
         KeyCode::Char('G') => {
             app.scroll_y = scroll_y_max;
@@ -54,30 +54,24 @@ pub fn handle_key(app: &mut App, code: KeyCode) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
     use weld_core::diff::{BlockKind, DiffResult};
     use weld_core::display;
-    use weld_core::file_io::{FileContent, LineEnding};
+    use weld_core::file_io::FileContent;
 
+    use crate::app::InputState;
     use crate::file_diff::view::expand_tabs;
     use crate::theme::Theme;
 
     fn test_app(left_lines: &[&str], right_lines: &[&str], viewport: (u16, u16)) -> App {
-        let make_content = |lines: &[&str]| FileContent {
-            path: PathBuf::new(),
-            lines: lines.iter().map(|s| s.to_string()).collect(),
-            line_ending: LineEnding::Lf,
-            has_trailing_newline: true,
-        };
-        let left_content = make_content(left_lines);
-        let right_content = make_content(right_lines);
+        let left_content = FileContent::from_lines(left_lines);
+        let right_content = FileContent::from_lines(right_lines);
         let diff = DiffResult::compute(&left_content, &right_content);
         let display_rows = display::build_display_rows(&diff);
 
         let max_content_width = left_content
-            .lines
+            .lines()
             .iter()
-            .chain(right_content.lines.iter())
+            .chain(right_content.lines().iter())
             .map(|l| expand_tabs(l).len() + 1)
             .max()
             .unwrap_or(0);
@@ -105,7 +99,7 @@ mod tests {
             scroll_x: 0,
             viewport_height: viewport.1,
             viewport_width: viewport.0,
-            pending_g: false,
+            input: InputState::default(),
         }
     }
 

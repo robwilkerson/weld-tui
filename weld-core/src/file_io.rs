@@ -23,13 +23,13 @@ impl LineEnding {
 #[derive(Debug, Clone)]
 pub struct FileContent {
     /// Path used to load this file content.
-    pub path: PathBuf,
+    pub(crate) path: PathBuf,
     /// File content split into lines, without line terminators.
-    pub lines: Vec<String>,
+    pub(crate) lines: Vec<String>,
     /// Detected line ending style, preserved on save.
-    pub line_ending: LineEnding,
+    pub(crate) line_ending: LineEnding,
     /// Whether the original file ended with a newline.
-    pub has_trailing_newline: bool,
+    pub(crate) has_trailing_newline: bool,
 }
 
 impl FileContent {
@@ -96,6 +96,21 @@ impl FileContent {
             text.push('\n');
         }
         text
+    }
+
+    /// The lines of the file, without line terminators.
+    pub fn lines(&self) -> &[String] {
+        &self.lines
+    }
+
+    /// Construct a FileContent from raw lines (for testing outside weld-core).
+    pub fn from_lines(lines: &[&str]) -> Self {
+        FileContent {
+            path: PathBuf::new(),
+            lines: lines.iter().map(|s| s.to_string()).collect(),
+            line_ending: LineEnding::Lf,
+            has_trailing_newline: !lines.is_empty(),
+        }
     }
 }
 
