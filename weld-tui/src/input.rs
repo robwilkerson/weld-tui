@@ -8,28 +8,15 @@ pub fn handle_key(app: &mut App, code: KeyCode) {
     let max_y = app.display_rows.len().saturating_sub(1) as u16;
     let scroll_y_max = max_y.saturating_sub(app.viewport_height.saturating_sub(1));
 
-    // Horizontal max based on visible display rows only.
-    let visible_start = app.scroll_y as usize;
-    let visible_end = (visible_start + app.viewport_height as usize).min(app.display_rows.len());
-    let max_x = if visible_start < visible_end {
-        app.display_rows[visible_start..visible_end]
-            .iter()
-            .map(|row| {
-                let left_len = row
-                    .left_line
-                    .map(|i| expand_tabs(&app.left_content.lines[i]).len() + 1)
-                    .unwrap_or(0);
-                let right_len = row
-                    .right_line
-                    .map(|i| expand_tabs(&app.right_content.lines[i]).len() + 1)
-                    .unwrap_or(0);
-                left_len.max(right_len)
-            })
-            .max()
-            .unwrap_or(0) as u16
-    } else {
-        0
-    };
+    // Horizontal max: longest line across both files (matches renderer padding).
+    let max_x = app
+        .left_content
+        .lines
+        .iter()
+        .chain(app.right_content.lines.iter())
+        .map(|l| expand_tabs(l).len() + 1)
+        .max()
+        .unwrap_or(0) as u16;
 
     // Handle `gg` — two consecutive `g` presses jump to top
     if app.pending_g {
@@ -144,7 +131,7 @@ mod tests {
     }
 
     #[test]
-    fn dollar_uses_visible_lines_only() {
+    fn dollar_uses_global_max_across_both_files() {
         let mut left: Vec<&str> = vec!["short"; 51];
         let long = &"a".repeat(200);
         left[50] = long;
@@ -153,7 +140,8 @@ mod tests {
 
         handle_key(&mut app, KeyCode::Char('$'));
 
-        assert_eq!(app.scroll_x, 0, "$ should not scroll for short visible lines");
+        // Global max = 201 (200 + leading space), viewport = 40 → scroll_x = 161
+        assert_eq!(app.scroll_x, 161, "$ should use global max even if long line is off-screen");
     }
 
     #[test]

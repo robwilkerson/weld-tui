@@ -47,6 +47,7 @@ fn build_side_lines(
     side: Side,
     digit_width: usize,
     gutter_width: u16,
+    max_content_width: usize,
     theme: &Theme,
 ) -> SideLines {
     let mut gutter = Vec::with_capacity(display_rows.len());
@@ -58,32 +59,11 @@ fn build_side_lines(
             Side::Right => row.right_line,
         };
 
-        let is_padding = line_idx.is_none();
+        let is_diff = row.kind != BlockKind::Equal;
+        let bg = if is_diff { theme.diff_bg } else { theme.bg };
 
-        let bg = match side {
-            Side::Left => match row.kind {
-                BlockKind::Equal => theme.bg,
-                BlockKind::Delete => theme.diff_delete_bg,
-                BlockKind::Insert => theme.diff_insert_bg,
-                BlockKind::Replace if is_padding => theme.diff_insert_bg,
-                BlockKind::Replace => theme.diff_delete_bg,
-            },
-            Side::Right => match row.kind {
-                BlockKind::Equal => theme.bg,
-                BlockKind::Delete => theme.diff_delete_bg,
-                BlockKind::Insert => theme.diff_insert_bg,
-                BlockKind::Replace if is_padding => theme.diff_delete_bg,
-                BlockKind::Replace => theme.diff_insert_bg,
-            },
-        };
-
-        // Gutter
-        let gutter_bg = if row.kind == BlockKind::Equal {
-            theme.gutter_bg
-        } else {
-            bg
-        };
-        let gutter_style = Style::default().fg(theme.line_number_fg).bg(gutter_bg);
+        // Gutter always uses gutter_bg
+        let gutter_style = Style::default().fg(theme.line_number_fg).bg(theme.gutter_bg);
 
         if let Some(idx) = line_idx {
             gutter.push(ratatui::text::Line::from(Span::styled(
@@ -97,20 +77,19 @@ fn build_side_lines(
             )));
         }
 
-        // Code
-        let code_style = Style::default().fg(theme.fg).bg(bg);
-        if let Some(idx) = line_idx {
-            let expanded = expand_tabs(&lines[idx]);
-            code.push(ratatui::text::Line::from(Span::styled(
-                format!(" {}", expanded),
-                code_style,
-            )));
+        // Code — pad diff lines to max width for a uniform highlight block
+        let line_style = Style::default().fg(theme.fg).bg(bg);
+        let text = if let Some(idx) = line_idx {
+            format!(" {}", expand_tabs(&lines[idx]))
         } else {
-            code.push(ratatui::text::Line::from(Span::styled(
-                " ".to_string(),
-                code_style,
-            )));
-        }
+            " ".to_string()
+        };
+        let padded = if is_diff {
+            format!("{:<width$}", text, width = max_content_width)
+        } else {
+            text
+        };
+        code.push(ratatui::text::Line::from(padded).style(line_style));
     }
 
     SideLines { gutter, code }
@@ -128,6 +107,7 @@ fn render_file_pane(
     scroll_y: u16,
     scroll_x: u16,
     digit_width: usize,
+    max_content_width: usize,
     theme: &Theme,
 ) {
     let border_style = Style::default().fg(theme.gutter_bg);
@@ -168,7 +148,7 @@ fn render_file_pane(
     let [gutter_area, code_area] =
         Layout::horizontal([Constraint::Length(gutter_width), Constraint::Min(0)]).areas(inner);
 
-    let side_lines = build_side_lines(display_rows, lines, side, digit_width, gutter_width, theme);
+    let side_lines = build_side_lines(display_rows, lines, side, digit_width, gutter_width, max_content_width, theme);
 
     frame.render_widget(
         Paragraph::new(side_lines.gutter).scroll((scroll_y, 0)),
@@ -199,6 +179,16 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         .max(app.right_content.lines.len());
     let digit_width = max_lines.to_string().len().max(2);
 
+    // Max content width across both panes so diff highlights align.
+    let max_content_width = app
+        .left_content
+        .lines
+        .iter()
+        .chain(app.right_content.lines.iter())
+        .map(|l| expand_tabs(l).len() + 1)
+        .max()
+        .unwrap_or(0);
+
     render_file_pane(
         frame,
         left_area,
@@ -210,6 +200,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         app.scroll_y,
         app.scroll_x,
         digit_width,
+        max_content_width,
         theme,
     );
     render_file_pane(
@@ -223,6 +214,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         app.scroll_y,
         app.scroll_x,
         digit_width,
+        max_content_width,
         theme,
     );
 
