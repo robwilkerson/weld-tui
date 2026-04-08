@@ -250,11 +250,21 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     app.viewport_height = inner_height;
     app.viewport_width = inner_code_width;
 
-    // Minimap
+    // Minimap — aligned to the content viewport, not the full pane height.
     if let Some(minimap_area) = minimap_area {
+        let content_top = header_height + 1; // header + top border
+        let minimap_content = ratatui::layout::Rect {
+            x: minimap_area.x,
+            y: minimap_area.y + content_top,
+            width: minimap_area.width,
+            height: minimap_area
+                .height
+                .saturating_sub(content_top)
+                .min(inner_height),
+        };
         super::minimap::render(
             frame.buffer_mut(),
-            minimap_area,
+            minimap_content,
             &app.display_rows,
             app.scroll_y,
             app.viewport_height,

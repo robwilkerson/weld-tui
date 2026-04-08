@@ -106,7 +106,7 @@ impl App {
             viewport_height: 0,
             viewport_width: 0,
             input: InputState::default(),
-            minimap_width: 2,
+            minimap_width: 1,
         })
     }
 }

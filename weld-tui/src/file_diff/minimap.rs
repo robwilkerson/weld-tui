@@ -82,7 +82,7 @@ pub fn render(
         }
     }
 
-    // Draw viewport indicator outline.
+    // Draw viewport indicator as │ overlay, preserving diff background.
     let (vp_top, vp_height) = viewport_indicator(
         scroll_y,
         viewport_height,
@@ -92,45 +92,15 @@ pub fn render(
     let vp_bottom = vp_top + vp_height.saturating_sub(1);
     let vp_fg = theme.minimap_viewport_fg;
 
-    // Helper: set a box-drawing symbol while preserving the existing background.
-    let mut set_vp_cell = |x: u16, y: u16, symbol: &str| {
-        let cell = &mut buf[(x, y)];
-        cell.set_symbol(symbol);
-        cell.fg = vp_fg;
-    };
-
     for row in vp_top..=vp_bottom {
         let y = area.y + row;
         if y >= area.y + area.height {
             break;
         }
-
-        // Left edge
-        if row == vp_top {
-            set_vp_cell(area.x, y, "┌");
-        } else if row == vp_bottom {
-            set_vp_cell(area.x, y, "└");
-        } else {
-            set_vp_cell(area.x, y, "│");
-        }
-
-        // Right edge (only if width > 1)
-        if area.width > 1 {
-            let rx = area.x + area.width - 1;
-            if row == vp_top {
-                set_vp_cell(rx, y, "┐");
-            } else if row == vp_bottom {
-                set_vp_cell(rx, y, "┘");
-            } else {
-                set_vp_cell(rx, y, "│");
-            }
-        }
-
-        // Top/bottom edges (fill between corners)
-        if (row == vp_top || row == vp_bottom) && area.width > 2 {
-            for col in 1..(area.width - 1) {
-                set_vp_cell(area.x + col, y, "─");
-            }
+        for col in 0..area.width {
+            let cell = &mut buf[(area.x + col, y)];
+            cell.set_symbol("│");
+            cell.fg = vp_fg;
         }
     }
 }

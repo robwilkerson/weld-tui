@@ -100,7 +100,7 @@ mod tests {
             viewport_height: viewport.1,
             viewport_width: viewport.0,
             input: InputState::default(),
-            minimap_width: 2,
+            minimap_width: 1,
         }
     }
 
