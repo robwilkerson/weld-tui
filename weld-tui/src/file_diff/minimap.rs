@@ -1,9 +1,14 @@
+use ratatui::buffer::Buffer;
+use ratatui::layout::Rect;
+use ratatui::style::Style;
+
 use weld_core::diff::BlockKind;
 use weld_core::display::DisplayRow;
 
+use crate::theme::Theme;
+
 /// For a given minimap row, determine whether it represents a diff region.
 /// When multiple display rows map to one minimap row, returns true if ANY is a diff.
-#[allow(dead_code)]
 pub fn is_diff_at_minimap_row(
     display_rows: &[DisplayRow],
     minimap_row: u16,
@@ -26,7 +31,6 @@ pub fn is_diff_at_minimap_row(
 
 /// Compute the viewport indicator's top row and height within the minimap.
 /// Returns (top, height) in minimap rows.
-#[allow(dead_code)]
 pub fn viewport_indicator(
     scroll_y: u16,
     viewport_height: u16,
@@ -45,6 +49,83 @@ pub fn viewport_indicator(
     let height = height.max(1).min(mh - top);
 
     (top as u16, height as u16)
+}
+
+/// Render the minimap into the given area of the buffer.
+pub fn render(
+    buf: &mut Buffer,
+    area: Rect,
+    display_rows: &[DisplayRow],
+    scroll_y: u16,
+    viewport_height: u16,
+    theme: &Theme,
+) {
+    let minimap_height = area.height;
+    if minimap_height == 0 || area.width == 0 {
+        return;
+    }
+
+    let bg_style = Style::default().bg(theme.minimap_bg);
+    let diff_style = Style::default().bg(theme.minimap_diff);
+
+    // Fill background and diff markers.
+    for row in 0..minimap_height {
+        let style = if is_diff_at_minimap_row(display_rows, row, minimap_height) {
+            diff_style
+        } else {
+            bg_style
+        };
+        for col in 0..area.width {
+            buf[(area.x + col, area.y + row)]
+                .set_symbol(" ")
+                .set_style(style);
+        }
+    }
+
+    // Draw viewport indicator outline.
+    let (vp_top, vp_height) = viewport_indicator(
+        scroll_y,
+        viewport_height,
+        display_rows.len(),
+        minimap_height,
+    );
+    let vp_bottom = vp_top + vp_height.saturating_sub(1);
+    let vp_style = Style::default().fg(theme.minimap_viewport_fg);
+
+    for row in vp_top..=vp_bottom {
+        let y = area.y + row;
+        if y >= area.y + area.height {
+            break;
+        }
+
+        // Left edge
+        if row == vp_top {
+            buf[(area.x, y)].set_symbol("┌").set_style(vp_style);
+        } else if row == vp_bottom {
+            buf[(area.x, y)].set_symbol("└").set_style(vp_style);
+        } else {
+            buf[(area.x, y)].set_symbol("│").set_style(vp_style);
+        }
+
+        // Right edge (only if width > 1)
+        if area.width > 1 {
+            let rx = area.x + area.width - 1;
+            if row == vp_top {
+                buf[(rx, y)].set_symbol("┐").set_style(vp_style);
+            } else if row == vp_bottom {
+                buf[(rx, y)].set_symbol("┘").set_style(vp_style);
+            } else {
+                buf[(rx, y)].set_symbol("│").set_style(vp_style);
+            }
+        }
+
+        // Top/bottom edges (fill between corners)
+        if (row == vp_top || row == vp_bottom) && area.width > 2 {
+            for col in 1..(area.width - 1) {
+                buf[(area.x + col, y)].set_symbol("─").set_style(vp_style);
+            }
+        }
+    }
 }
 
 #[cfg(test)]

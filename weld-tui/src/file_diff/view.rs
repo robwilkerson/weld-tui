@@ -176,10 +176,25 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     let [body, status] =
         Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).areas(frame.area());
 
-    let [left_area, right_area] =
-        Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
-            .spacing(1)
-            .areas(body);
+    let (left_area, right_area, minimap_area) = if app.minimap_width > 0 {
+        let [panes, minimap] =
+            Layout::horizontal([Constraint::Min(0), Constraint::Length(app.minimap_width)])
+                .areas(body);
+
+        let [left, right] =
+            Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
+                .spacing(1)
+                .areas(panes);
+
+        (left, right, Some(minimap))
+    } else {
+        let [left, right] =
+            Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
+                .spacing(1)
+                .areas(body);
+
+        (left, right, None)
+    };
 
     let max_lines = app
         .left_content
@@ -234,6 +249,18 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         .saturating_sub(gutter_cols);
     app.viewport_height = inner_height;
     app.viewport_width = inner_code_width;
+
+    // Minimap
+    if let Some(minimap_area) = minimap_area {
+        super::minimap::render(
+            frame.buffer_mut(),
+            minimap_area,
+            &app.display_rows,
+            app.scroll_y,
+            app.viewport_height,
+            theme,
+        );
+    }
 
     // Status bar
     let change_count = app.change_count;

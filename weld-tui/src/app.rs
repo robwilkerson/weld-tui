@@ -44,7 +44,6 @@ pub struct App {
     /// Multi-key input state machine.
     pub input: InputState,
     /// Width of the minimap bar in terminal columns (0 = hidden).
-    #[allow(dead_code)]
     pub minimap_width: u16,
 }
 
