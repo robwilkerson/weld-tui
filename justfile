@@ -53,9 +53,13 @@ test:
     cargo test --all
 
 # Run tests with coverage report
+# Ignores files that can't be meaningfully unit tested:
+#   main.rs (terminal wiring), event.rs (crossterm wrapper),
+#   theme.rs (static data), view.rs (rendering, needs a frame)
 [group('Development')]
 coverage:
-    cargo llvm-cov --all --open
+    cargo llvm-cov --all \
+        --ignore-filename-regex '(main|app|event|theme|view)\.rs$'
 
 # Format and lint
 [group('Development')]
