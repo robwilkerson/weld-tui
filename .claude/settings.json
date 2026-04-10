@@ -9,5 +9,8 @@
       "Bash(cargo fmt:*)",
       "Bash(cargo clippy:*)"
     ]
+  },
+  "enabledPlugins": {
+    "rust-analyzer-lsp@claude-plugins-official": true
   }
 }
