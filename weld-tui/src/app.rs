@@ -24,8 +24,7 @@ pub struct App {
     pub right_filename: String,
     pub left_content: FileContent,
     pub right_content: FileContent,
-    /// Computed diff between left and right files (used by merge/navigation).
-    #[allow(dead_code)]
+    /// Computed diff between left and right files.
     pub diff: DiffResult,
     /// Display rows: flattened diff blocks with alignment padding.
     pub display_rows: Vec<DisplayRow>,

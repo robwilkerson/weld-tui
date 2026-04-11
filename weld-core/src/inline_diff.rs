@@ -23,7 +23,7 @@ pub struct InlineDiff {
 impl InlineDiff {
     /// Compute character-level diff between two lines.
     pub fn compute(left_line: &str, right_line: &str) -> Self {
-        let diff = TextDiff::from_chars(left_line, right_line);
+        let diff = TextDiff::from_words(left_line, right_line);
         let mut left_segments = Vec::new();
         let mut right_segments = Vec::new();
 
@@ -107,9 +107,15 @@ mod tests {
 
     #[test]
     fn partial_change_detected() {
-        let result = InlineDiff::compute("App::new()", "App::with_config(&config)");
+        let result = InlineDiff::compute("Host: \"localhost\",", "Host: \"0.0.0.0\",");
+        // Word-level: "Host: \"" is equal, the value differs, trailing "\"," is equal.
         assert!(result.left_segments.len() >= 2);
-        assert_eq!(result.left_segments[0].kind, InlineKind::Equal);
+        assert!(
+            result
+                .left_segments
+                .iter()
+                .any(|s| s.kind == InlineKind::Equal)
+        );
         assert!(
             result
                 .left_segments

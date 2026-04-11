@@ -4,8 +4,9 @@ use ratatui::style::Style;
 use ratatui::text::Span;
 use ratatui::widgets::{Block, Borders, Paragraph};
 
-use weld_core::diff::BlockKind;
+use weld_core::diff::{BlockKind, DiffResult};
 use weld_core::display::DisplayRow;
+use weld_core::inline_diff::InlineKind;
 
 use crate::app::App;
 use crate::theme::Theme;
@@ -48,6 +49,7 @@ fn build_side_lines(
     digit_width: usize,
     gutter_width: u16,
     max_content_width: usize,
+    diff: &DiffResult,
     theme: &Theme,
 ) -> SideLines {
     let mut gutter = Vec::with_capacity(display_rows.len());
@@ -79,7 +81,44 @@ fn build_side_lines(
             )));
         }
 
-        // Code — pad diff lines to max width for a uniform highlight block
+        // Code — for Replace rows with inline diffs, highlight changed characters.
+        if row.kind == BlockKind::Replace {
+            if let Some(inline) = inline_diff_for_row(row, side, diff) {
+                let base_style = Style::default().fg(theme.fg).bg(theme.diff_bg);
+                let emphasis_style = Style::default().fg(theme.fg).bg(theme.diff_emphasis_bg);
+
+                let segments = match side {
+                    Side::Left => &inline.left_segments,
+                    Side::Right => &inline.right_segments,
+                };
+
+                let mut spans: Vec<Span<'static>> = Vec::new();
+                spans.push(Span::styled(" ".to_string(), base_style)); // leading space
+
+                for seg in segments {
+                    let text = expand_tabs(&seg.text);
+                    let style = match seg.kind {
+                        InlineKind::Equal => base_style,
+                        InlineKind::Changed => emphasis_style,
+                    };
+                    spans.push(Span::styled(text, style));
+                }
+
+                // Pad to max width for uniform highlight block.
+                let current_width: usize = spans.iter().map(|s| s.content.len()).sum();
+                if current_width < max_content_width {
+                    spans.push(Span::styled(
+                        " ".repeat(max_content_width - current_width),
+                        base_style,
+                    ));
+                }
+
+                code.push(ratatui::text::Line::from(spans));
+                continue;
+            }
+        }
+
+        // Default: uniform style for the whole line.
         let line_style = Style::default().fg(theme.fg).bg(bg);
         let text = if let Some(idx) = line_idx {
             format!(" {}", expand_tabs(&lines[idx]))
@@ -97,12 +136,34 @@ fn build_side_lines(
     SideLines { gutter, code }
 }
 
+/// Look up the InlineDiff for a Replace row, if one exists.
+fn inline_diff_for_row<'a>(
+    row: &DisplayRow,
+    side: Side,
+    diff: &'a DiffResult,
+) -> Option<&'a weld_core::inline_diff::InlineDiff> {
+    let block = &diff.blocks[row.block_index];
+    // Compute offset of this row within its block.
+    let offset = match side {
+        Side::Left => {
+            let line = row.left_line?;
+            line.checked_sub(block.left_range.start)?
+        }
+        Side::Right => {
+            let line = row.right_line?;
+            line.checked_sub(block.right_range.start)?
+        }
+    };
+    block.inline_diffs.get(offset)
+}
+
 /// Shared parameters for rendering a file pane.
 struct PaneContext<'a> {
     dir: &'a str,
     filename: &'a str,
     lines: &'a [String],
     display_rows: &'a [DisplayRow],
+    diff: &'a DiffResult,
     side: Side,
     scroll_y: u16,
     scroll_x: u16,
@@ -156,6 +217,7 @@ fn render_file_pane(frame: &mut Frame, area: ratatui::layout::Rect, ctx: &PaneCo
         ctx.digit_width,
         gutter_width,
         ctx.max_content_width,
+        ctx.diff,
         theme,
     );
 
@@ -213,6 +275,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
             filename: &app.left_filename,
             lines: app.left_content.lines(),
             display_rows: &app.display_rows,
+            diff: &app.diff,
             side: Side::Left,
             scroll_y: app.scroll_y,
             scroll_x: app.scroll_x,
@@ -229,6 +292,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
             filename: &app.right_filename,
             lines: app.right_content.lines(),
             display_rows: &app.display_rows,
+            diff: &app.diff,
             side: Side::Right,
             scroll_y: app.scroll_y,
             scroll_x: app.scroll_x,
