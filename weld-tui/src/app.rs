@@ -6,6 +6,7 @@ use weld_core::file_io::{FileContent, shorten_dir};
 
 use crate::file_diff::view::expand_tabs;
 use crate::theme::Theme;
+use crate::viewport::Viewport;
 
 /// Tracks multi-key input sequences (e.g., `gg`, future counts/search).
 #[derive(Default)]
@@ -32,14 +33,8 @@ pub struct App {
     pub max_content_width: usize,
     /// Number of non-equal diff blocks (for status bar).
     pub change_count: usize,
-    /// Synchronized vertical scroll offset.
-    pub scroll_y: u16,
-    /// Synchronized horizontal scroll offset.
-    pub scroll_x: u16,
-    /// Last-known viewport height (rows visible in code area).
-    pub viewport_height: u16,
-    /// Last-known viewport width (columns visible in code area).
-    pub viewport_width: u16,
+    /// Scroll position and visible dimensions.
+    pub viewport: Viewport,
     /// Multi-key input state machine.
     pub input: InputState,
     /// Width of the minimap bar in terminal columns (0 = hidden).
@@ -100,10 +95,7 @@ impl App {
             display_rows,
             max_content_width,
             change_count,
-            scroll_y: 0,
-            scroll_x: 0,
-            viewport_height: 0,
-            viewport_width: 0,
+            viewport: Viewport::default(),
             input: InputState::default(),
             minimap_width: 1,
         })

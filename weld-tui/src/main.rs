@@ -3,6 +3,7 @@ mod event;
 mod file_diff;
 mod input;
 mod theme;
+mod viewport;
 
 use std::path::PathBuf;
 use std::time::Duration;

@@ -4,16 +4,14 @@ use crate::app::App;
 
 /// Handle a key press, updating app state.
 pub fn handle_key(app: &mut App, code: KeyCode) {
-    let max_y = app.display_rows.len().saturating_sub(1) as u16;
-    let scroll_y_max = max_y.saturating_sub(app.viewport_height.saturating_sub(1));
-
+    let total_rows = app.display_rows.len();
     let max_x = app.max_content_width as u16;
 
     // Handle `gg` — two consecutive `g` presses jump to top
     if app.input.pending_g {
         app.input.pending_g = false;
         if code == KeyCode::Char('g') {
-            app.scroll_y = 0;
+            app.viewport.scroll_to_top();
             return;
         }
     }
@@ -21,31 +19,28 @@ pub fn handle_key(app: &mut App, code: KeyCode) {
     match code {
         KeyCode::Char('q') => app.running = false,
         KeyCode::Char('j') | KeyCode::Down => {
-            app.scroll_y = app.scroll_y.saturating_add(1).min(scroll_y_max);
+            app.viewport.scroll_down(total_rows);
         }
         KeyCode::Char('k') | KeyCode::Up => {
-            app.scroll_y = app.scroll_y.saturating_sub(1);
+            app.viewport.scroll_up();
         }
         KeyCode::Char('l') | KeyCode::Right => {
-            app.scroll_x = app
-                .scroll_x
-                .saturating_add(2)
-                .min(max_x.saturating_sub(app.viewport_width));
+            app.viewport.scroll_right(2, max_x);
         }
         KeyCode::Char('h') | KeyCode::Left => {
-            app.scroll_x = app.scroll_x.saturating_sub(2);
+            app.viewport.scroll_left(2);
         }
         KeyCode::Char('0') | KeyCode::Home => {
-            app.scroll_x = 0;
+            app.viewport.scroll_to_left();
         }
         KeyCode::Char('$') | KeyCode::End => {
-            app.scroll_x = max_x.saturating_sub(app.viewport_width);
+            app.viewport.scroll_to_right(max_x);
         }
         KeyCode::Char('g') => {
             app.input.pending_g = true;
         }
         KeyCode::Char('G') => {
-            app.scroll_y = scroll_y_max;
+            app.viewport.scroll_to_bottom(total_rows);
         }
         _ => {}
     }
@@ -61,6 +56,7 @@ mod tests {
     use crate::app::InputState;
     use crate::file_diff::view::expand_tabs;
     use crate::theme::Theme;
+    use crate::viewport::Viewport;
 
     fn test_app(left_lines: &[&str], right_lines: &[&str], viewport: (u16, u16)) -> App {
         let left_content = FileContent::from_lines(left_lines);
@@ -95,10 +91,12 @@ mod tests {
             display_rows,
             max_content_width,
             change_count,
-            scroll_y: 0,
-            scroll_x: 0,
-            viewport_height: viewport.1,
-            viewport_width: viewport.0,
+            viewport: Viewport {
+                scroll_y: 0,
+                scroll_x: 0,
+                height: viewport.1,
+                width: viewport.0,
+            },
             input: InputState::default(),
             minimap_width: 1,
         }
@@ -114,7 +112,7 @@ mod tests {
         }
 
         // 20 identical lines = 20 display rows. max scroll = 20 - 10 = 10
-        assert_eq!(app.scroll_y, 10);
+        assert_eq!(app.viewport.scroll_y, 10);
     }
 
     #[test]
@@ -123,14 +121,14 @@ mod tests {
         let mut app = test_app(&lines, &lines, (40, 20));
 
         handle_key(&mut app, KeyCode::Char('G'));
-        let g_pos = app.scroll_y;
+        let g_pos = app.viewport.scroll_y;
 
-        app.scroll_y = 0;
+        app.viewport.scroll_y = 0;
         for _ in 0..100 {
             handle_key(&mut app, KeyCode::Char('j'));
         }
 
-        assert_eq!(app.scroll_y, g_pos);
+        assert_eq!(app.viewport.scroll_y, g_pos);
     }
 
     #[test]
@@ -145,7 +143,7 @@ mod tests {
 
         // Global max = 201 (200 + leading space), viewport = 40 → scroll_x = 161
         assert_eq!(
-            app.scroll_x, 161,
+            app.viewport.scroll_x, 161,
             "$ should use global max even if long line is off-screen"
         );
     }
@@ -159,23 +157,26 @@ mod tests {
 
         let mut app = test_app(&line_refs, &line_refs, (40, 10));
 
-        app.scroll_y = 10;
+        app.viewport.scroll_y = 10;
         handle_key(&mut app, KeyCode::Char('$'));
 
         // max_x = 101 (100 + leading space), viewport_width = 40 → scroll_x = 61
-        assert_eq!(app.scroll_x, 61, "$ should use the long line now visible");
+        assert_eq!(
+            app.viewport.scroll_x, 61,
+            "$ should use the long line now visible"
+        );
     }
 
     #[test]
     fn gg_jumps_to_top() {
         let lines = vec!["line"; 50];
         let mut app = test_app(&lines, &lines, (40, 10));
-        app.scroll_y = 30;
+        app.viewport.scroll_y = 30;
 
         handle_key(&mut app, KeyCode::Char('g'));
         handle_key(&mut app, KeyCode::Char('g'));
 
-        assert_eq!(app.scroll_y, 0);
+        assert_eq!(app.viewport.scroll_y, 0);
     }
 
     #[test]
@@ -184,26 +185,29 @@ mod tests {
         let mut app = test_app(&[&long], &[&long], (40, 10));
 
         handle_key(&mut app, KeyCode::Char('$'));
-        let dollar_pos = app.scroll_x;
+        let dollar_pos = app.viewport.scroll_x;
 
-        app.scroll_x = 0;
+        app.viewport.scroll_x = 0;
         for _ in 0..200 {
             handle_key(&mut app, KeyCode::Char('l'));
         }
 
-        assert_eq!(app.scroll_x, dollar_pos, "l max should equal $ position");
+        assert_eq!(
+            app.viewport.scroll_x, dollar_pos,
+            "l max should equal $ position"
+        );
     }
 
     #[test]
     fn g_then_non_g_does_not_jump() {
         let lines = vec!["line"; 50];
         let mut app = test_app(&lines, &lines, (40, 10));
-        app.scroll_y = 30;
+        app.viewport.scroll_y = 30;
 
         handle_key(&mut app, KeyCode::Char('g'));
         handle_key(&mut app, KeyCode::Char('j'));
 
-        assert_eq!(app.scroll_y, 31, "g then j should just move down");
+        assert_eq!(app.viewport.scroll_y, 31, "g then j should just move down");
     }
 
     #[test]

@@ -277,8 +277,8 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
             display_rows: &app.display_rows,
             diff: &app.diff,
             side: Side::Left,
-            scroll_y: app.scroll_y,
-            scroll_x: app.scroll_x,
+            scroll_y: app.viewport.scroll_y,
+            scroll_x: app.viewport.scroll_x,
             digit_width,
             max_content_width,
             theme,
@@ -294,15 +294,15 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
             display_rows: &app.display_rows,
             diff: &app.diff,
             side: Side::Right,
-            scroll_y: app.scroll_y,
-            scroll_x: app.scroll_x,
+            scroll_y: app.viewport.scroll_y,
+            scroll_x: app.viewport.scroll_x,
             digit_width,
             max_content_width,
             theme,
         },
     );
 
-    // Store viewport dimensions for scroll clamping.
+    // Update viewport dimensions and clamp scroll after resize.
     let header_height = 3u16;
     let content_height = left_area.height.saturating_sub(header_height);
     let inner_height = content_height.saturating_sub(2);
@@ -311,8 +311,10 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         .width
         .saturating_sub(2)
         .saturating_sub(gutter_cols);
-    app.viewport_height = inner_height;
-    app.viewport_width = inner_code_width;
+    app.viewport.height = inner_height;
+    app.viewport.width = inner_code_width;
+    app.viewport
+        .clamp(app.display_rows.len(), app.max_content_width as u16);
 
     // Minimap — aligned to the content viewport, not the full pane height.
     if let Some(minimap_area) = minimap_area {
@@ -330,8 +332,8 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
             frame.buffer_mut(),
             minimap_content,
             &app.display_rows,
-            app.scroll_y,
-            app.viewport_height,
+            app.viewport.scroll_y,
+            app.viewport.height,
             theme,
         );
     }
