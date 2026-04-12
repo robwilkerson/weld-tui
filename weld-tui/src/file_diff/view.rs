@@ -233,8 +233,6 @@ fn render_file_pane(frame: &mut Frame, area: ratatui::layout::Rect, ctx: &PaneCo
 
 /// Top-level UI: two file panes side by side + status bar.
 pub fn draw(frame: &mut Frame, app: &mut App) {
-    let theme = &app.theme;
-
     let [body, status] =
         Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).areas(frame.area());
 
@@ -264,7 +262,29 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         .len()
         .max(app.right_content.lines().len());
     let digit_width = max_lines.to_string().len().max(2);
+    let header_height = 3u16;
 
+    // Update viewport dimensions early so initial scroll has correct bounds.
+    let content_height = left_area.height.saturating_sub(header_height);
+    let inner_height = content_height.saturating_sub(2);
+    let gutter_cols = (digit_width as u16) + 2;
+    let inner_code_width = left_area
+        .width
+        .saturating_sub(2)
+        .saturating_sub(gutter_cols);
+    app.viewport.height = inner_height;
+    app.viewport.width = inner_code_width;
+    app.viewport
+        .clamp(app.display_rows.len(), app.max_content_width as u16);
+
+    // On first render, scroll to center the first change block.
+    if app.needs_initial_scroll {
+        app.needs_initial_scroll = false;
+        crate::input::scroll_to_current_block(app);
+    }
+
+    // All mutation done — borrow theme for rendering.
+    let theme = &app.theme;
     let max_content_width = app.max_content_width;
 
     render_file_pane(
@@ -302,19 +322,36 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         },
     );
 
-    // Update viewport dimensions and clamp scroll after resize.
-    let header_height = 3u16;
-    let content_height = left_area.height.saturating_sub(header_height);
-    let inner_height = content_height.saturating_sub(2);
-    let gutter_cols = (digit_width as u16) + 2;
-    let inner_code_width = left_area
-        .width
-        .saturating_sub(2)
-        .saturating_sub(gutter_cols);
-    app.viewport.height = inner_height;
-    app.viewport.width = inner_code_width;
-    app.viewport
-        .clamp(app.display_rows.len(), app.max_content_width as u16);
+    // Dot indicator — render ● in the 1-column gap, centered on the current block.
+    if !app.change_block_indices.is_empty() {
+        let block_index = app.change_block_indices[app.current_block];
+
+        // Find the display row range for this block.
+        let block_rows: Vec<usize> = app
+            .display_rows
+            .iter()
+            .enumerate()
+            .filter(|(_, r)| r.block_index == block_index)
+            .map(|(i, _)| i)
+            .collect();
+
+        if let (Some(&first), Some(&last)) = (block_rows.first(), block_rows.last()) {
+            let center_row = (first + last) / 2;
+            let scroll_y = app.viewport.scroll_y as usize;
+
+            if center_row >= scroll_y && center_row < scroll_y + inner_height as usize {
+                let screen_row = (center_row - scroll_y) as u16;
+                // Gap column is between left_area and right_area.
+                let gap_x = left_area.x + left_area.width;
+                // Offset by header (3) + top border (1) to align with content.
+                let gap_y = left_area.y + header_height + 1 + screen_row;
+                let dot_style = Style::default().fg(theme.gutter_dot);
+                frame.buffer_mut()[(gap_x, gap_y)]
+                    .set_symbol("●")
+                    .set_style(dot_style);
+            }
+        }
+    }
 
     // Minimap — aligned to the content viewport, not the full pane height.
     if let Some(minimap_area) = minimap_area {
@@ -343,11 +380,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     let hint_text = if change_count == 0 {
         " Files are identical  [q → quit]".to_string()
     } else {
-        format!(
-            " {} change{}  [q → quit]",
-            change_count,
-            if change_count == 1 { "" } else { "s" }
-        )
+        format!(" {}/{}  [q → quit]", app.current_block + 1, change_count,)
     };
     let hint_style = Style::default().fg(theme.status_bar_fg);
     frame.render_widget(

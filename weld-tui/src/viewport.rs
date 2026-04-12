@@ -39,16 +39,6 @@ impl Viewport {
         self.scroll_y = self.scroll_y.saturating_sub(1);
     }
 
-    /// Jump to top.
-    pub fn scroll_to_top(&mut self) {
-        self.scroll_y = 0;
-    }
-
-    /// Jump to bottom, clamped.
-    pub fn scroll_to_bottom(&mut self, total_rows: usize) {
-        self.scroll_y = self.scroll_y_max(total_rows);
-    }
-
     /// Scroll right by `cols` columns, clamped.
     pub fn scroll_right(&mut self, cols: u16, max_content_width: u16) {
         self.scroll_x = self
@@ -115,16 +105,15 @@ mod tests {
     }
 
     #[test]
-    fn scroll_to_bottom_matches_repeated_down() {
-        let mut v1 = vp(20, 40);
-        v1.scroll_to_bottom(50);
+    fn scroll_y_max_matches_repeated_down() {
+        let mut v = vp(20, 40);
+        let max = v.scroll_y_max(50);
 
-        let mut v2 = vp(20, 40);
         for _ in 0..100 {
-            v2.scroll_down(50);
+            v.scroll_down(50);
         }
 
-        assert_eq!(v1.scroll_y, v2.scroll_y);
+        assert_eq!(v.scroll_y, max);
     }
 
     #[test]

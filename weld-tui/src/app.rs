@@ -33,6 +33,12 @@ pub struct App {
     pub max_content_width: usize,
     /// Number of non-equal diff blocks (for status bar).
     pub change_count: usize,
+    /// Indices of non-Equal blocks within `diff.blocks` (for block navigation).
+    pub change_block_indices: Vec<usize>,
+    /// Index into `change_block_indices` — which change block is "current".
+    pub current_block: usize,
+    /// True until the first render sets viewport dimensions and scrolls to the first block.
+    pub needs_initial_scroll: bool,
     /// Scroll position and visible dimensions.
     pub viewport: Viewport,
     /// Multi-key input state machine.
@@ -57,11 +63,14 @@ impl App {
             .max()
             .unwrap_or(0);
 
-        let change_count = diff
+        let change_block_indices: Vec<usize> = diff
             .blocks
             .iter()
-            .filter(|b| b.kind != BlockKind::Equal)
-            .count();
+            .enumerate()
+            .filter(|(_, b)| b.kind != BlockKind::Equal)
+            .map(|(i, _)| i)
+            .collect();
+        let change_count = change_block_indices.len();
 
         let left_abs = left.canonicalize().unwrap_or(left);
         let right_abs = right.canonicalize().unwrap_or(right);
@@ -95,6 +104,9 @@ impl App {
             display_rows,
             max_content_width,
             change_count,
+            change_block_indices,
+            current_block: 0,
+            needs_initial_scroll: true,
             viewport: Viewport::default(),
             input: InputState::default(),
             minimap_width: 1,

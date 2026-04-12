@@ -52,7 +52,7 @@ fn main_loop(
         if let Some(Event::Key(key)) = event::poll_event(Duration::from_millis(50))?
             && key.kind == KeyEventKind::Press
         {
-            input::handle_key(app, key.code);
+            input::handle_key(app, key);
         }
     }
     Ok(())
