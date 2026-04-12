@@ -60,7 +60,7 @@ impl Default for Theme {
             fg: Color::Rgb(202, 211, 245),                   // Text
             header_bg: Color::Rgb(54, 58, 79),               // Surface0
             header_fg: Color::Rgb(138, 173, 244),            // Blue
-            dirty_indicator: Color::Rgb(245, 169, 127),      // Peach
+            dirty_indicator: Color::Rgb(165, 173, 203),      // Subtext0
             status_bar_bg: Color::Rgb(54, 58, 79),           // Surface0
             status_bar_fg: Color::Rgb(165, 173, 203),        // Subtext0
             line_number_fg: Color::Rgb(165, 173, 203),       // Subtext0

@@ -45,6 +45,10 @@ pub struct App {
     pub input: InputState,
     /// Width of the minimap bar in terminal columns (0 = hidden).
     pub minimap_width: u16,
+    /// Whether the left file has been modified by a copy operation.
+    pub left_dirty: bool,
+    /// Whether the right file has been modified by a copy operation.
+    pub right_dirty: bool,
 }
 
 impl App {
@@ -110,6 +114,67 @@ impl App {
             viewport: Viewport::default(),
             input: InputState::default(),
             minimap_width: 1,
+            left_dirty: false,
+            right_dirty: false,
         })
+    }
+
+    /// Copy the active block's content from the left side to the right side.
+    pub fn copy_left_to_right(&mut self) {
+        if self.change_block_indices.is_empty() {
+            return;
+        }
+        let block_index = self.change_block_indices[self.current_block];
+        let block = &self.diff.blocks[block_index];
+        let source: Vec<String> = self.left_content.lines()[block.left_range.clone()].to_vec();
+        self.right_content
+            .splice_lines(block.right_range.clone(), source);
+        self.right_dirty = true;
+        self.recompute_diff();
+    }
+
+    /// Copy the active block's content from the right side to the left side.
+    pub fn copy_right_to_left(&mut self) {
+        if self.change_block_indices.is_empty() {
+            return;
+        }
+        let block_index = self.change_block_indices[self.current_block];
+        let block = &self.diff.blocks[block_index];
+        let source: Vec<String> = self.right_content.lines()[block.right_range.clone()].to_vec();
+        self.left_content
+            .splice_lines(block.left_range.clone(), source);
+        self.left_dirty = true;
+        self.recompute_diff();
+    }
+
+    /// Recompute diff, display rows, and navigation indices after a copy operation.
+    fn recompute_diff(&mut self) {
+        self.diff = DiffResult::compute(&self.left_content, &self.right_content);
+        self.display_rows = weld_core::display::build_display_rows(&self.diff);
+
+        self.max_content_width = self
+            .left_content
+            .lines()
+            .iter()
+            .chain(self.right_content.lines().iter())
+            .map(|l| expand_tabs(l).len() + 1)
+            .max()
+            .unwrap_or(0);
+
+        self.change_block_indices = self
+            .diff
+            .blocks
+            .iter()
+            .enumerate()
+            .filter(|(_, b)| b.kind != BlockKind::Equal)
+            .map(|(i, _)| i)
+            .collect();
+        self.change_count = self.change_block_indices.len();
+
+        if self.change_block_indices.is_empty() {
+            self.current_block = 0;
+        } else if self.current_block >= self.change_block_indices.len() {
+            self.current_block = self.change_block_indices.len() - 1;
+        }
     }
 }

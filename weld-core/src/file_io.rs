@@ -103,6 +103,11 @@ impl FileContent {
         &self.lines
     }
 
+    /// Replace a range of lines with new content.
+    pub fn splice_lines(&mut self, range: std::ops::Range<usize>, replacement: Vec<String>) {
+        self.lines.splice(range, replacement);
+    }
+
     /// Construct a FileContent from raw lines (for testing outside weld-core).
     pub fn from_lines(lines: &[&str]) -> Self {
         FileContent {

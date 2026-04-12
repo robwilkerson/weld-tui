@@ -183,6 +183,7 @@ struct PaneContext<'a> {
     digit_width: usize,
     max_content_width: usize,
     active_block_index: Option<usize>,
+    dirty: bool,
     theme: &'a Theme,
 }
 
@@ -203,14 +204,20 @@ fn render_file_pane(frame: &mut Frame, area: ratatui::layout::Rect, ctx: &PaneCo
             Style::default().fg(theme.status_bar_fg),
         ))
         .style(Style::default().bg(theme.bg));
+    let mut header_spans = vec![Span::styled(
+        format!(" {}", ctx.filename),
+        Style::default()
+            .fg(theme.header_fg)
+            .add_modifier(ratatui::style::Modifier::BOLD),
+    )];
+    if ctx.dirty {
+        header_spans.push(Span::styled(
+            " ●",
+            Style::default().fg(theme.dirty_indicator),
+        ));
+    }
     frame.render_widget(
-        Paragraph::new(Span::styled(
-            format!(" {}", ctx.filename),
-            Style::default()
-                .fg(theme.header_fg)
-                .add_modifier(ratatui::style::Modifier::BOLD),
-        ))
-        .block(header_block),
+        Paragraph::new(ratatui::text::Line::from(header_spans)).block(header_block),
         header_area,
     );
 
@@ -324,6 +331,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
             digit_width,
             max_content_width,
             active_block_index,
+            dirty: app.left_dirty,
             theme,
         },
     );
@@ -342,6 +350,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
             digit_width,
             max_content_width,
             active_block_index,
+            dirty: app.right_dirty,
             theme,
         },
     );

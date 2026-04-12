@@ -49,6 +49,14 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
         KeyCode::Char('G') => {
             last_block(app);
         }
+        KeyCode::Char('L') => {
+            app.copy_left_to_right();
+            scroll_to_current_block(app);
+        }
+        KeyCode::Char('H') => {
+            app.copy_right_to_left();
+            scroll_to_current_block(app);
+        }
         _ => {}
     }
 }
@@ -175,6 +183,8 @@ mod tests {
             },
             input: InputState::default(),
             minimap_width: 1,
+            left_dirty: false,
+            right_dirty: false,
         }
     }
 
@@ -365,5 +375,82 @@ mod tests {
 
         // Block starts at display row 30. Center in viewport of height 10 → scroll_y = 30 - 5 = 25
         assert_eq!(app.viewport.scroll_y, 25);
+    }
+
+    #[test]
+    fn copy_left_to_right_replaces_content() {
+        let left = vec!["a", "b", "c"];
+        let right = vec!["a", "X", "c"];
+        let mut app = test_app(&left, &right, (40, 10));
+
+        handle_key(&mut app, key(KeyCode::Char('L')));
+
+        assert_eq!(app.right_content.lines(), &["a", "b", "c"]);
+        assert!(app.right_dirty);
+        assert!(!app.left_dirty);
+    }
+
+    #[test]
+    fn copy_right_to_left_replaces_content() {
+        let left = vec!["a", "b", "c"];
+        let right = vec!["a", "X", "c"];
+        let mut app = test_app(&left, &right, (40, 10));
+
+        handle_key(&mut app, key(KeyCode::Char('H')));
+
+        assert_eq!(app.left_content.lines(), &["a", "X", "c"]);
+        assert!(app.left_dirty);
+        assert!(!app.right_dirty);
+    }
+
+    #[test]
+    fn copy_removes_change_block() {
+        let left = vec!["a", "b", "c"];
+        let right = vec!["a", "X", "c"];
+        let mut app = test_app(&left, &right, (40, 10));
+
+        assert_eq!(app.change_count, 1);
+        handle_key(&mut app, key(KeyCode::Char('L')));
+        assert_eq!(app.change_count, 0);
+    }
+
+    #[test]
+    fn copy_clamps_current_block() {
+        // Two change blocks; navigate to the last, then copy it away.
+        let left = vec!["a", "b", "c", "d", "e"];
+        let right = vec!["a", "X", "c", "Y", "e"];
+        let mut app = test_app(&left, &right, (40, 10));
+
+        handle_key(&mut app, key(KeyCode::Char('J'))); // move to second block
+        assert_eq!(app.current_block, 1);
+
+        handle_key(&mut app, key(KeyCode::Char('L'))); // copy it away
+        assert_eq!(app.change_count, 1);
+        assert_eq!(app.current_block, 0); // clamped back
+    }
+
+    #[test]
+    fn copy_insert_block_left_to_right() {
+        // Right has extra lines — copying left→right removes them.
+        let left = vec!["a", "b"];
+        let right = vec!["a", "X", "Y", "b"];
+        let mut app = test_app(&left, &right, (40, 10));
+
+        handle_key(&mut app, key(KeyCode::Char('L')));
+
+        assert_eq!(app.right_content.lines(), &["a", "b"]);
+        assert_eq!(app.change_count, 0);
+    }
+
+    #[test]
+    fn copy_noop_when_no_changes() {
+        let left = vec!["a", "b", "c"];
+        let right = vec!["a", "b", "c"];
+        let mut app = test_app(&left, &right, (40, 10));
+
+        handle_key(&mut app, key(KeyCode::Char('L')));
+
+        assert!(!app.left_dirty);
+        assert!(!app.right_dirty);
     }
 }
