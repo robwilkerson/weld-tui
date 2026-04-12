@@ -6,7 +6,7 @@ license.workspace = true
 description = "Diff engine and merge logic for weld"
 
 [dependencies]
-similar = { version = "2", features = ["inline"] }
+similar = { version = "3", features = ["inline"] }
 
 [dev-dependencies]
 pretty_assertions = "1"
