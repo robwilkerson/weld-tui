@@ -24,17 +24,33 @@ enum Side {
     Right,
 }
 
-fn build_side_lines(
-    display_rows: &[DisplayRow],
-    lines: &[String],
+/// Shared parameters for rendering a file pane.
+struct PaneContext<'a> {
+    dir: &'a str,
+    filename: &'a str,
+    lines: &'a [String],
+    display_rows: &'a [DisplayRow],
+    diff: &'a DiffResult,
     side: Side,
+    scroll_y: u16,
+    scroll_x: u16,
     digit_width: usize,
-    gutter_width: u16,
     max_content_width: usize,
-    diff: &DiffResult,
-    theme: &Theme,
     active_block_index: Option<usize>,
-) -> SideLines {
+    dirty: bool,
+    theme: &'a Theme,
+}
+
+fn build_side_lines(ctx: &PaneContext, gutter_width: u16) -> SideLines {
+    let display_rows = ctx.display_rows;
+    let lines = ctx.lines;
+    let side = ctx.side;
+    let digit_width = ctx.digit_width;
+    let max_content_width = ctx.max_content_width;
+    let diff = ctx.diff;
+    let theme = ctx.theme;
+    let active_block_index = ctx.active_block_index;
+
     let mut gutter = Vec::with_capacity(display_rows.len());
     let mut code = Vec::with_capacity(display_rows.len());
 
@@ -152,23 +168,6 @@ fn inline_diff_for_row<'a>(
     block.inline_diffs.get(offset)
 }
 
-/// Shared parameters for rendering a file pane.
-struct PaneContext<'a> {
-    dir: &'a str,
-    filename: &'a str,
-    lines: &'a [String],
-    display_rows: &'a [DisplayRow],
-    diff: &'a DiffResult,
-    side: Side,
-    scroll_y: u16,
-    scroll_x: u16,
-    digit_width: usize,
-    max_content_width: usize,
-    active_block_index: Option<usize>,
-    dirty: bool,
-    theme: &'a Theme,
-}
-
 /// Render a file side using display rows.
 fn render_file_pane(frame: &mut Frame, area: ratatui::layout::Rect, ctx: &PaneContext) {
     let theme = ctx.theme;
@@ -215,17 +214,7 @@ fn render_file_pane(frame: &mut Frame, area: ratatui::layout::Rect, ctx: &PaneCo
     let [gutter_area, code_area] =
         Layout::horizontal([Constraint::Length(gutter_width), Constraint::Min(0)]).areas(inner);
 
-    let side_lines = build_side_lines(
-        ctx.display_rows,
-        ctx.lines,
-        ctx.side,
-        ctx.digit_width,
-        gutter_width,
-        ctx.max_content_width,
-        ctx.diff,
-        theme,
-        ctx.active_block_index,
-    );
+    let side_lines = build_side_lines(ctx, gutter_width);
 
     frame.render_widget(
         Paragraph::new(side_lines.gutter).scroll((ctx.scroll_y, 0)),
