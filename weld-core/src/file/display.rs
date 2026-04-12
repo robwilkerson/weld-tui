@@ -81,8 +81,8 @@ pub fn build_display_rows(diff: &DiffResult) -> Vec<DisplayRow> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::diff::DiffBlock;
+    use super::*;
 
     fn equal(left_start: usize, right_start: usize, len: usize) -> DiffBlock {
         DiffBlock {
