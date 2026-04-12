@@ -5,9 +5,8 @@
 # What it does:
 #   1. Scans staged files for leaked secrets using Kingfisher. If valid secrets
 #      are found, the commit is blocked.
-#   2. Runs `cargo fmt` to auto-format Rust code. If the formatter changes any
-#      staged files, those changes are automatically re-staged so the commit
-#      includes the formatted versions.
+#   2. Runs `cargo fmt` to auto-format all Rust code. Any files changed by the
+#      formatter are staged so the commit always includes formatted code.
 #
 # Setup:
 #   Run `just bootstrap` (or `git config core.hooksPath .githooks`) to
@@ -41,14 +40,19 @@ if ! kingfisher scan --only-valid $STAGED_FILES_ARGS; then
 fi
 echo "✅ No valid secrets detected"
 
-# Auto-format staged files
+# Auto-format all Rust code
 if [ -n "$FMT_CMD" ]; then
     echo "🎨 Running formatter..."
     $FMT_CMD
-    # Re-stage any files that were reformatted
-    REFORMATTED=$(git diff --name-only -- $STAGED_FILES_ARGS)
+    # Stage all files the formatter touched
+    REFORMATTED=$(git diff --name-only -- '*.rs')
     if [ -n "$REFORMATTED" ]; then
         echo "$REFORMATTED" | xargs git add
         echo "✅ Reformatted and re-staged: $(echo "$REFORMATTED" | wc -l | tr -d ' ') file(s)"
+    fi
+    # Belt-and-suspenders: verify everything is clean
+    if ! $FMT_CMD -- --check > /dev/null 2>&1; then
+        echo "❌ Formatter check failed after re-staging. Aborting commit."
+        exit 1
     fi
 fi
