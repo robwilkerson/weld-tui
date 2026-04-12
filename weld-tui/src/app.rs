@@ -3,10 +3,21 @@ use std::path::PathBuf;
 use weld_core::diff::{BlockKind, DiffResult};
 use weld_core::display::DisplayRow;
 use weld_core::file_io::{FileContent, shorten_dir};
+use weld_core::undo::UndoStack;
 
 use crate::file_diff::view::expand_tabs;
 use crate::theme::Theme;
 use crate::viewport::Viewport;
+
+/// Snapshot of mutable state captured before a mutation for undo/redo.
+#[derive(Clone)]
+pub struct Snapshot {
+    pub left_content: FileContent,
+    pub right_content: FileContent,
+    pub left_dirty: bool,
+    pub right_dirty: bool,
+    pub current_block: usize,
+}
 
 /// Tracks multi-key input sequences (e.g., `gg`, future counts/search).
 #[derive(Default)]
@@ -49,6 +60,8 @@ pub struct App {
     pub left_dirty: bool,
     /// Whether the right file has been modified by a copy operation.
     pub right_dirty: bool,
+    /// Undo/redo stack for copy operations.
+    pub undo_stack: UndoStack<Snapshot>,
 }
 
 impl App {
@@ -116,7 +129,29 @@ impl App {
             minimap_width: 1,
             left_dirty: false,
             right_dirty: false,
+            undo_stack: UndoStack::new(1),
         })
+    }
+
+    /// Capture current mutable state as a snapshot.
+    fn snapshot(&self) -> Snapshot {
+        Snapshot {
+            left_content: self.left_content.clone(),
+            right_content: self.right_content.clone(),
+            left_dirty: self.left_dirty,
+            right_dirty: self.right_dirty,
+            current_block: self.current_block,
+        }
+    }
+
+    /// Restore mutable state from a snapshot and recompute derived state.
+    fn restore(&mut self, snapshot: &Snapshot) {
+        self.left_content = snapshot.left_content.clone();
+        self.right_content = snapshot.right_content.clone();
+        self.left_dirty = snapshot.left_dirty;
+        self.right_dirty = snapshot.right_dirty;
+        self.current_block = snapshot.current_block;
+        self.recompute_diff();
     }
 
     /// Copy the active block's content from the left side to the right side.
@@ -124,6 +159,7 @@ impl App {
         if self.change_block_indices.is_empty() {
             return;
         }
+        self.undo_stack.push(self.snapshot());
         let block_index = self.change_block_indices[self.current_block];
         let block = &self.diff.blocks[block_index];
         let source: Vec<String> = self.left_content.lines()[block.left_range.clone()].to_vec();
@@ -138,6 +174,7 @@ impl App {
         if self.change_block_indices.is_empty() {
             return;
         }
+        self.undo_stack.push(self.snapshot());
         let block_index = self.change_block_indices[self.current_block];
         let block = &self.diff.blocks[block_index];
         let source: Vec<String> = self.right_content.lines()[block.right_range.clone()].to_vec();
@@ -145,6 +182,24 @@ impl App {
             .splice_lines(block.left_range.clone(), source);
         self.left_dirty = true;
         self.recompute_diff();
+    }
+
+    /// Undo the most recent copy operation.
+    pub fn undo(&mut self) {
+        if let Some(previous) = self.undo_stack.pop_undo() {
+            let current = self.snapshot();
+            self.restore(&previous);
+            self.undo_stack.push_redo(current);
+        }
+    }
+
+    /// Redo the most recently undone operation.
+    pub fn redo(&mut self) {
+        if let Some(next) = self.undo_stack.pop_redo() {
+            let current = self.snapshot();
+            self.restore(&next);
+            self.undo_stack.push_undo(current);
+        }
     }
 
     /// Recompute diff, display rows, and navigation indices after a copy operation.

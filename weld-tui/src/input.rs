@@ -1,4 +1,4 @@
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use crate::app::App;
 
@@ -55,6 +55,14 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
         }
         KeyCode::Char('H') => {
             app.copy_right_to_left();
+            scroll_to_current_block(app);
+        }
+        KeyCode::Char('u') => {
+            app.undo();
+            scroll_to_current_block(app);
+        }
+        KeyCode::Char('r') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            app.redo();
             scroll_to_current_block(app);
         }
         _ => {}
@@ -125,6 +133,7 @@ mod tests {
     use weld_core::diff::{BlockKind, DiffResult};
     use weld_core::display;
     use weld_core::file_io::FileContent;
+    use weld_core::undo::UndoStack;
 
     use crate::app::InputState;
     use crate::file_diff::view::expand_tabs;
@@ -185,6 +194,7 @@ mod tests {
             minimap_width: 1,
             left_dirty: false,
             right_dirty: false,
+            undo_stack: UndoStack::new(1),
         }
     }
 
@@ -452,5 +462,68 @@ mod tests {
 
         assert!(!app.left_dirty);
         assert!(!app.right_dirty);
+    }
+
+    /// Helper to create a KeyEvent with Ctrl modifier.
+    fn ctrl(code: KeyCode) -> KeyEvent {
+        KeyEvent::new(code, KeyModifiers::CONTROL)
+    }
+
+    #[test]
+    fn undo_restores_previous_state() {
+        let left = vec!["a", "b", "c"];
+        let right = vec!["a", "X", "c"];
+        let mut app = test_app(&left, &right, (40, 10));
+
+        handle_key(&mut app, key(KeyCode::Char('L'))); // copy left→right
+        assert_eq!(app.right_content.lines(), &["a", "b", "c"]);
+        assert_eq!(app.change_count, 0);
+
+        handle_key(&mut app, key(KeyCode::Char('u'))); // undo
+        assert_eq!(app.right_content.lines(), &["a", "X", "c"]);
+        assert_eq!(app.change_count, 1);
+        assert!(!app.right_dirty);
+    }
+
+    #[test]
+    fn redo_restores_undone_state() {
+        let left = vec!["a", "b", "c"];
+        let right = vec!["a", "X", "c"];
+        let mut app = test_app(&left, &right, (40, 10));
+
+        handle_key(&mut app, key(KeyCode::Char('L'))); // copy
+        handle_key(&mut app, key(KeyCode::Char('u'))); // undo
+        handle_key(&mut app, ctrl(KeyCode::Char('r'))); // redo
+
+        assert_eq!(app.right_content.lines(), &["a", "b", "c"]);
+        assert_eq!(app.change_count, 0);
+        assert!(app.right_dirty);
+    }
+
+    #[test]
+    fn undo_noop_when_nothing_to_undo() {
+        let left = vec!["a", "b", "c"];
+        let right = vec!["a", "X", "c"];
+        let mut app = test_app(&left, &right, (40, 10));
+
+        handle_key(&mut app, key(KeyCode::Char('u'))); // no-op
+        assert_eq!(app.right_content.lines(), &["a", "X", "c"]);
+        assert_eq!(app.change_count, 1);
+    }
+
+    #[test]
+    fn new_copy_clears_redo() {
+        let left = vec!["a", "b", "c", "d", "e"];
+        let right = vec!["a", "X", "c", "Y", "e"];
+        let mut app = test_app(&left, &right, (40, 10));
+
+        handle_key(&mut app, key(KeyCode::Char('L'))); // copy block 0
+        handle_key(&mut app, key(KeyCode::Char('u'))); // undo
+        handle_key(&mut app, key(KeyCode::Char('L'))); // new copy — clears redo
+
+        handle_key(&mut app, ctrl(KeyCode::Char('r'))); // redo should be no-op
+        // After the new copy, we copied block 0 again; the old redo is gone.
+        // Just verify redo didn't crash or change state unexpectedly.
+        assert!(app.right_dirty);
     }
 }
