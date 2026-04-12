@@ -12,15 +12,47 @@ Meld, Beyond Compare, and DiffMerge.
 
 ## Status
 
-Early development. Not yet usable.
+Early development. Core file diff and two-way merge are functional.
 
 ## Prerequisites
 
 - [Rust](https://www.rust-lang.org/tools/install) >= 1.94
+
+## Usage
+
+```bash
+weld <left-file> <right-file>
+```
+
+### Navigation
+
+| Key | Action |
+|-----|--------|
+| `j` / `k` | Scroll down / up one line |
+| `Shift+j` / `Shift+k` | Jump to next / previous change block |
+| `gg` | Jump to first change block |
+| `Shift+g` | Jump to last change block |
+| `h` / `l` | Scroll left / right |
+| `0` / `$` | Jump to left / right edge |
+| `q` | Quit |
+
+### Merging
+
+| Key | Action |
+|-----|--------|
+| `Shift+l` | Copy active block left → right |
+| `Shift+h` | Copy active block right → left |
+| `u` | Undo last copy |
+| `Ctrl+r` | Redo last undo |
+
+## Contributing
+
+### Prerequisites
+
 - [just](https://github.com/casey/just) — command runner
 - [Kingfisher](https://github.com/trufflesecurity/kingfisher) — secrets scanning (pre-commit hook)
 
-## Getting Started
+### Getting Started
 
 ```bash
 just bootstrap
