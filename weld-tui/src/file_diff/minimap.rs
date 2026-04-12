@@ -152,6 +152,24 @@ mod tests {
             .collect()
     }
 
+    /// Build display rows with realistic block indices (new block index on each kind transition).
+    fn make_rows_with_blocks(kinds: &[BlockKind]) -> Vec<DisplayRow> {
+        let mut rows = Vec::new();
+        let mut block_index = 0;
+        for (i, &kind) in kinds.iter().enumerate() {
+            if i > 0 && kind != kinds[i - 1] {
+                block_index += 1;
+            }
+            rows.push(DisplayRow {
+                left_line: Some(i),
+                right_line: Some(i),
+                kind,
+                block_index,
+            });
+        }
+        rows
+    }
+
     #[test]
     fn empty_display_rows_returns_false() {
         assert!(!is_diff_at_minimap_row(&[], 0, 10));
@@ -232,5 +250,56 @@ mod tests {
         let (top, height) = viewport_indicator(0, 10, 0, 20);
         assert_eq!(top, 0);
         assert_eq!(height, 20);
+    }
+
+    #[test]
+    fn viewport_indicator_scrolled_to_end() {
+        // 100 display rows, viewport 20, scrolled to max (80), minimap 50.
+        // Indicator should not overflow the minimap.
+        let (top, height) = viewport_indicator(80, 20, 100, 50);
+        assert!(
+            top + height <= 50,
+            "indicator must not overflow minimap: top={top}, height={height}"
+        );
+        assert!(height >= 1, "indicator height must be at least 1");
+    }
+
+    #[test]
+    fn active_none_returns_false() {
+        let rows = make_rows(&[BlockKind::Replace; 10]);
+        assert!(!is_active_at_minimap_row(&rows, 0, 10, None));
+    }
+
+    #[test]
+    fn active_matches_correct_block() {
+        // Equal(block 0) → Replace(block 1) → Equal(block 2) → Insert(block 3)
+        let kinds = vec![
+            BlockKind::Equal,
+            BlockKind::Equal,
+            BlockKind::Replace,
+            BlockKind::Replace,
+            BlockKind::Equal,
+            BlockKind::Equal,
+            BlockKind::Insert,
+        ];
+        let rows = make_rows_with_blocks(&kinds);
+        // 7 display rows, minimap height 7 → 1:1 mapping.
+
+        // Block 1 (Replace) is active — rows 2 and 3 should match.
+        assert!(!is_active_at_minimap_row(&rows, 1, 7, Some(1)));
+        assert!(is_active_at_minimap_row(&rows, 2, 7, Some(1)));
+        assert!(is_active_at_minimap_row(&rows, 3, 7, Some(1)));
+        assert!(!is_active_at_minimap_row(&rows, 4, 7, Some(1)));
+
+        // Block 3 (Insert) is active — only row 6 should match.
+        assert!(!is_active_at_minimap_row(&rows, 5, 7, Some(3)));
+        assert!(is_active_at_minimap_row(&rows, 6, 7, Some(3)));
+    }
+
+    #[test]
+    fn active_ignores_equal_rows_with_matching_block_index() {
+        // Equal rows happen to have block_index 0, but active should not highlight them.
+        let rows = make_rows(&[BlockKind::Equal; 5]);
+        assert!(!is_active_at_minimap_row(&rows, 0, 5, Some(0)));
     }
 }
