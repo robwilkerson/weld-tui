@@ -29,6 +29,31 @@ pub fn is_diff_at_minimap_row(
         .any(|r| r.kind != BlockKind::Equal)
 }
 
+/// For a given minimap row, determine whether it contains the active diff block.
+pub fn is_active_at_minimap_row(
+    display_rows: &[DisplayRow],
+    minimap_row: u16,
+    minimap_height: u16,
+    active_block_index: Option<usize>,
+) -> bool {
+    let active = match active_block_index {
+        Some(idx) => idx,
+        None => return false,
+    };
+    let total = display_rows.len();
+    if total == 0 || minimap_height == 0 {
+        return false;
+    }
+
+    let start = (minimap_row as usize) * total / (minimap_height as usize);
+    let end = ((minimap_row as usize) + 1) * total / (minimap_height as usize);
+    let end = end.max(start + 1).min(total);
+
+    display_rows[start..end]
+        .iter()
+        .any(|r| r.block_index == active && r.kind != BlockKind::Equal)
+}
+
 /// Compute the viewport indicator's top row and height within the minimap.
 /// Returns (top, height) in minimap rows.
 pub fn viewport_indicator(
@@ -58,6 +83,7 @@ pub fn render(
     display_rows: &[DisplayRow],
     scroll_y: u16,
     viewport_height: u16,
+    active_block_index: Option<usize>,
     theme: &Theme,
 ) {
     let minimap_height = area.height;
@@ -67,14 +93,18 @@ pub fn render(
 
     let bg_style = Style::default().bg(theme.minimap_bg);
     let diff_style = Style::default().bg(theme.minimap_diff);
+    let diff_active_style = Style::default().bg(theme.minimap_diff_active);
 
     // Fill background and diff markers.
     for row in 0..minimap_height {
-        let style = if is_diff_at_minimap_row(display_rows, row, minimap_height) {
-            diff_style
-        } else {
-            bg_style
-        };
+        let style =
+            if is_active_at_minimap_row(display_rows, row, minimap_height, active_block_index) {
+                diff_active_style
+            } else if is_diff_at_minimap_row(display_rows, row, minimap_height) {
+                diff_style
+            } else {
+                bg_style
+            };
         for col in 0..area.width {
             buf[(area.x + col, area.y + row)]
                 .set_symbol(" ")

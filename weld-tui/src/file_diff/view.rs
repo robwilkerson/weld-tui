@@ -51,6 +51,7 @@ fn build_side_lines(
     max_content_width: usize,
     diff: &DiffResult,
     theme: &Theme,
+    active_block_index: Option<usize>,
 ) -> SideLines {
     let mut gutter = Vec::with_capacity(display_rows.len());
     let mut code = Vec::with_capacity(display_rows.len());
@@ -62,7 +63,14 @@ fn build_side_lines(
         };
 
         let is_diff = row.kind != BlockKind::Equal;
-        let bg = if is_diff { theme.diff_bg } else { theme.bg };
+        let is_active = active_block_index == Some(row.block_index);
+        let bg = if !is_diff {
+            theme.bg
+        } else if is_active {
+            theme.diff_bg_active
+        } else {
+            theme.diff_bg
+        };
 
         // Gutter always uses gutter_bg
         let gutter_style = Style::default()
@@ -84,8 +92,13 @@ fn build_side_lines(
         // Code — for Replace rows with inline diffs, highlight changed characters.
         if row.kind == BlockKind::Replace {
             if let Some(inline) = inline_diff_for_row(row, side, diff) {
-                let base_style = Style::default().fg(theme.fg).bg(theme.diff_bg);
-                let emphasis_style = Style::default().fg(theme.fg).bg(theme.diff_emphasis_bg);
+                let base_style = Style::default().fg(theme.fg).bg(bg);
+                let emphasis_bg = if is_active {
+                    theme.diff_emphasis_bg_active
+                } else {
+                    theme.diff_emphasis_bg
+                };
+                let emphasis_style = Style::default().fg(theme.fg).bg(emphasis_bg);
 
                 let segments = match side {
                     Side::Left => &inline.left_segments,
@@ -169,6 +182,7 @@ struct PaneContext<'a> {
     scroll_x: u16,
     digit_width: usize,
     max_content_width: usize,
+    active_block_index: Option<usize>,
     theme: &'a Theme,
 }
 
@@ -219,6 +233,7 @@ fn render_file_pane(frame: &mut Frame, area: ratatui::layout::Rect, ctx: &PaneCo
         ctx.max_content_width,
         ctx.diff,
         theme,
+        ctx.active_block_index,
     );
 
     frame.render_widget(
@@ -286,6 +301,11 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     // All mutation done — borrow theme for rendering.
     let theme = &app.theme;
     let max_content_width = app.max_content_width;
+    let active_block_index = if app.change_block_indices.is_empty() {
+        None
+    } else {
+        Some(app.change_block_indices[app.current_block])
+    };
 
     render_file_pane(
         frame,
@@ -301,6 +321,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
             scroll_x: app.viewport.scroll_x,
             digit_width,
             max_content_width,
+            active_block_index,
             theme,
         },
     );
@@ -318,11 +339,12 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
             scroll_x: app.viewport.scroll_x,
             digit_width,
             max_content_width,
+            active_block_index,
             theme,
         },
     );
 
-    // Dot indicator — render ● in the 1-column gap, centered on the current block.
+    // Pill indicator in the 1-column gap marking the current change block.
     if !app.change_block_indices.is_empty() {
         let block_index = app.change_block_indices[app.current_block];
 
@@ -335,20 +357,20 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
             .map(|(i, _)| i)
             .collect();
 
-        if let (Some(&first), Some(&last)) = (block_rows.first(), block_rows.last()) {
-            let center_row = (first + last) / 2;
+        if !block_rows.is_empty() {
             let scroll_y = app.viewport.scroll_y as usize;
+            let viewport_end = scroll_y + inner_height as usize;
+            let gap_x = left_area.x + left_area.width;
+            let pill_style = Style::default().fg(theme.gutter_dot);
 
-            if center_row >= scroll_y && center_row < scroll_y + inner_height as usize {
-                let screen_row = (center_row - scroll_y) as u16;
-                // Gap column is between left_area and right_area.
-                let gap_x = left_area.x + left_area.width;
-                // Offset by header (3) + top border (1) to align with content.
-                let gap_y = left_area.y + header_height + 1 + screen_row;
-                let dot_style = Style::default().fg(theme.gutter_dot);
-                frame.buffer_mut()[(gap_x, gap_y)]
-                    .set_symbol("●")
-                    .set_style(dot_style);
+            for &row in &block_rows {
+                if row >= scroll_y && row < viewport_end {
+                    let screen_row = (row - scroll_y) as u16;
+                    let gap_y = left_area.y + header_height + 1 + screen_row;
+                    frame.buffer_mut()[(gap_x, gap_y)]
+                        .set_symbol("█")
+                        .set_style(pill_style);
+                }
             }
         }
     }
@@ -371,6 +393,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
             &app.display_rows,
             app.viewport.scroll_y,
             app.viewport.height,
+            active_block_index,
             theme,
         );
     }
