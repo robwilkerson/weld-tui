@@ -104,7 +104,17 @@ impl FileContent {
     }
 
     /// Replace a range of lines with new content.
+    ///
+    /// # Panics
+    /// Panics if `range` is out of bounds (i.e., `range.end > self.lines.len()`).
     pub fn splice_lines(&mut self, range: std::ops::Range<usize>, replacement: Vec<String>) {
+        assert!(
+            range.end <= self.lines.len(),
+            "splice_lines: range {}..{} out of bounds for {} lines",
+            range.start,
+            range.end,
+            self.lines.len(),
+        );
         self.lines.splice(range, replacement);
     }
 

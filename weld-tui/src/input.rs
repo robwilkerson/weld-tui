@@ -130,14 +130,8 @@ pub fn scroll_to_current_block(app: &mut App) {
 mod tests {
     use super::*;
     use crossterm::event::KeyEvent;
-    use weld_core::diff::{BlockKind, DiffResult};
-    use weld_core::display;
     use weld_core::file_io::FileContent;
-    use weld_core::undo::UndoStack;
 
-    use crate::app::InputState;
-    use crate::file_diff::view::expand_tabs;
-    use crate::theme::Theme;
     use crate::viewport::Viewport;
 
     /// Build a plain KeyEvent (no modifiers) from a KeyCode.
@@ -146,56 +140,17 @@ mod tests {
     }
 
     fn test_app(left_lines: &[&str], right_lines: &[&str], viewport: (u16, u16)) -> App {
-        let left_content = FileContent::from_lines(left_lines);
-        let right_content = FileContent::from_lines(right_lines);
-        let diff = DiffResult::compute(&left_content, &right_content);
-        let display_rows = display::build_display_rows(&diff);
-
-        let max_content_width = left_content
-            .lines()
-            .iter()
-            .chain(right_content.lines().iter())
-            .map(|l| expand_tabs(l).len() + 1)
-            .max()
-            .unwrap_or(0);
-
-        let change_block_indices: Vec<usize> = diff
-            .blocks
-            .iter()
-            .enumerate()
-            .filter(|(_, b)| b.kind != BlockKind::Equal)
-            .map(|(i, _)| i)
-            .collect();
-        let change_count = change_block_indices.len();
-
-        App {
-            theme: Theme::default(),
-            running: true,
-            left_dir: String::new(),
-            left_filename: String::new(),
-            right_dir: String::new(),
-            right_filename: String::new(),
-            left_content,
-            right_content,
-            diff,
-            display_rows,
-            max_content_width,
-            change_count,
-            change_block_indices,
-            current_block: 0,
-            needs_initial_scroll: false,
-            viewport: Viewport {
-                scroll_y: 0,
-                scroll_x: 0,
-                height: viewport.1,
-                width: viewport.0,
-            },
-            input: InputState::default(),
-            minimap_width: 1,
-            left_dirty: false,
-            right_dirty: false,
-            undo_stack: UndoStack::new(1),
-        }
+        let mut app = App::from_contents(
+            FileContent::from_lines(left_lines),
+            FileContent::from_lines(right_lines),
+        );
+        app.viewport = Viewport {
+            scroll_y: 0,
+            scroll_x: 0,
+            height: viewport.1,
+            width: viewport.0,
+        };
+        app
     }
 
     #[test]

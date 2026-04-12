@@ -3,11 +3,13 @@ use std::path::PathBuf;
 use weld_core::diff::{BlockKind, DiffResult};
 use weld_core::display::DisplayRow;
 use weld_core::file_io::{FileContent, shorten_dir};
+use weld_core::text::expand_tabs;
 use weld_core::undo::UndoStack;
 
-use crate::file_diff::view::expand_tabs;
 use crate::theme::Theme;
 use crate::viewport::Viewport;
+
+const DEFAULT_UNDO_CAPACITY: usize = 100;
 
 /// Snapshot of mutable state captured before a mutation for undo/redo.
 #[derive(Clone)]
@@ -24,6 +26,45 @@ pub struct Snapshot {
 pub struct InputState {
     /// Whether the previous keypress was `g` (waiting for `gg`).
     pub pending_g: bool,
+}
+
+/// State derived from the current file contents — recomputed after every mutation.
+struct DerivedState {
+    diff: DiffResult,
+    display_rows: Vec<DisplayRow>,
+    max_content_width: usize,
+    change_block_indices: Vec<usize>,
+    change_count: usize,
+}
+
+fn compute_derived(left: &FileContent, right: &FileContent) -> DerivedState {
+    let diff = DiffResult::compute(left, right);
+    let display_rows = weld_core::display::build_display_rows(&diff);
+
+    let max_content_width = left
+        .lines()
+        .iter()
+        .chain(right.lines().iter())
+        .map(|l| expand_tabs(l).len() + 1)
+        .max()
+        .unwrap_or(0);
+
+    let change_block_indices: Vec<usize> = diff
+        .blocks
+        .iter()
+        .enumerate()
+        .filter(|(_, b)| b.kind != BlockKind::Equal)
+        .map(|(i, _)| i)
+        .collect();
+    let change_count = change_block_indices.len();
+
+    DerivedState {
+        diff,
+        display_rows,
+        max_content_width,
+        change_block_indices,
+        change_count,
+    }
 }
 
 /// Top-level application state.
@@ -69,68 +110,62 @@ impl App {
         let left_content = FileContent::load(&left)?;
         let right_content = FileContent::load(&right)?;
 
-        let diff = DiffResult::compute(&left_content, &right_content);
-        let display_rows = weld_core::display::build_display_rows(&diff);
-
-        let max_content_width = left_content
-            .lines()
-            .iter()
-            .chain(right_content.lines().iter())
-            .map(|l| expand_tabs(l).len() + 1)
-            .max()
-            .unwrap_or(0);
-
-        let change_block_indices: Vec<usize> = diff
-            .blocks
-            .iter()
-            .enumerate()
-            .filter(|(_, b)| b.kind != BlockKind::Equal)
-            .map(|(i, _)| i)
-            .collect();
-        let change_count = change_block_indices.len();
-
         let left_abs = left.canonicalize().unwrap_or(left);
         let right_abs = right.canonicalize().unwrap_or(right);
 
-        Ok(App {
+        let mut app = Self::from_contents(left_content, right_content);
+        app.left_dir = shorten_dir(
+            &left_abs
+                .parent()
+                .map(|p| p.display().to_string())
+                .unwrap_or_default(),
+        );
+        app.left_filename = left_abs
+            .file_name()
+            .map(|f| f.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        app.right_dir = shorten_dir(
+            &right_abs
+                .parent()
+                .map(|p| p.display().to_string())
+                .unwrap_or_default(),
+        );
+        app.right_filename = right_abs
+            .file_name()
+            .map(|f| f.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        app.needs_initial_scroll = true;
+
+        Ok(app)
+    }
+
+    /// Construct an App from pre-loaded file contents (no filesystem access).
+    pub fn from_contents(left_content: FileContent, right_content: FileContent) -> Self {
+        let derived = compute_derived(&left_content, &right_content);
+
+        App {
             theme: Theme::default(),
             running: true,
-            left_dir: shorten_dir(
-                &left_abs
-                    .parent()
-                    .map(|p| p.display().to_string())
-                    .unwrap_or_default(),
-            ),
-            left_filename: left_abs
-                .file_name()
-                .map(|f| f.to_string_lossy().into_owned())
-                .unwrap_or_default(),
-            right_dir: shorten_dir(
-                &right_abs
-                    .parent()
-                    .map(|p| p.display().to_string())
-                    .unwrap_or_default(),
-            ),
-            right_filename: right_abs
-                .file_name()
-                .map(|f| f.to_string_lossy().into_owned())
-                .unwrap_or_default(),
+            left_dir: String::new(),
+            left_filename: String::new(),
+            right_dir: String::new(),
+            right_filename: String::new(),
             left_content,
             right_content,
-            diff,
-            display_rows,
-            max_content_width,
-            change_count,
-            change_block_indices,
+            diff: derived.diff,
+            display_rows: derived.display_rows,
+            max_content_width: derived.max_content_width,
+            change_count: derived.change_count,
+            change_block_indices: derived.change_block_indices,
             current_block: 0,
-            needs_initial_scroll: true,
+            needs_initial_scroll: false,
             viewport: Viewport::default(),
             input: InputState::default(),
             minimap_width: 1,
             left_dirty: false,
             right_dirty: false,
-            undo_stack: UndoStack::new(1),
-        })
+            undo_stack: UndoStack::new(DEFAULT_UNDO_CAPACITY),
+        }
     }
 
     /// Capture current mutable state as a snapshot.
@@ -202,29 +237,14 @@ impl App {
         }
     }
 
-    /// Recompute diff, display rows, and navigation indices after a copy operation.
+    /// Recompute diff, display rows, and navigation indices after a mutation.
     fn recompute_diff(&mut self) {
-        self.diff = DiffResult::compute(&self.left_content, &self.right_content);
-        self.display_rows = weld_core::display::build_display_rows(&self.diff);
-
-        self.max_content_width = self
-            .left_content
-            .lines()
-            .iter()
-            .chain(self.right_content.lines().iter())
-            .map(|l| expand_tabs(l).len() + 1)
-            .max()
-            .unwrap_or(0);
-
-        self.change_block_indices = self
-            .diff
-            .blocks
-            .iter()
-            .enumerate()
-            .filter(|(_, b)| b.kind != BlockKind::Equal)
-            .map(|(i, _)| i)
-            .collect();
-        self.change_count = self.change_block_indices.len();
+        let derived = compute_derived(&self.left_content, &self.right_content);
+        self.diff = derived.diff;
+        self.display_rows = derived.display_rows;
+        self.max_content_width = derived.max_content_width;
+        self.change_block_indices = derived.change_block_indices;
+        self.change_count = derived.change_count;
 
         if self.change_block_indices.is_empty() {
             self.current_block = 0;

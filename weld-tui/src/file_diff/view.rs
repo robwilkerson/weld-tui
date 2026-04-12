@@ -7,28 +7,10 @@ use ratatui::widgets::{Block, Borders, Paragraph};
 use weld_core::diff::{BlockKind, DiffResult};
 use weld_core::display::DisplayRow;
 use weld_core::inline_diff::InlineKind;
+use weld_core::text::expand_tabs;
 
 use crate::app::App;
 use crate::theme::Theme;
-
-/// Expand tabs to spaces for display, respecting tab stops.
-const TAB_WIDTH: usize = 4;
-
-pub fn expand_tabs(s: &str) -> String {
-    let mut result = String::with_capacity(s.len());
-    let mut col = 0;
-    for ch in s.chars() {
-        if ch == '\t' {
-            let spaces = TAB_WIDTH - (col % TAB_WIDTH);
-            result.extend(std::iter::repeat_n(' ', spaces));
-            col += spaces;
-        } else {
-            result.push(ch);
-            col += 1;
-        }
-    }
-    result
-}
 
 /// Gutter + code lines for one side of the diff.
 struct SideLines {
@@ -90,45 +72,45 @@ fn build_side_lines(
         }
 
         // Code — for Replace rows with inline diffs, highlight changed characters.
-        if row.kind == BlockKind::Replace {
-            if let Some(inline) = inline_diff_for_row(row, side, diff) {
-                let base_style = Style::default().fg(theme.fg).bg(bg);
-                let emphasis_bg = if is_active {
-                    theme.diff_emphasis_bg_active
-                } else {
-                    theme.diff_emphasis_bg
+        if row.kind == BlockKind::Replace
+            && let Some(inline) = inline_diff_for_row(row, side, diff)
+        {
+            let base_style = Style::default().fg(theme.fg).bg(bg);
+            let emphasis_bg = if is_active {
+                theme.diff_emphasis_bg_active
+            } else {
+                theme.diff_emphasis_bg
+            };
+            let emphasis_style = Style::default().fg(theme.fg).bg(emphasis_bg);
+
+            let segments = match side {
+                Side::Left => &inline.left_segments,
+                Side::Right => &inline.right_segments,
+            };
+
+            let mut spans: Vec<Span<'static>> = Vec::new();
+            spans.push(Span::styled(" ".to_string(), base_style)); // leading space
+
+            for seg in segments {
+                let text = expand_tabs(&seg.text);
+                let style = match seg.kind {
+                    InlineKind::Equal => base_style,
+                    InlineKind::Changed => emphasis_style,
                 };
-                let emphasis_style = Style::default().fg(theme.fg).bg(emphasis_bg);
-
-                let segments = match side {
-                    Side::Left => &inline.left_segments,
-                    Side::Right => &inline.right_segments,
-                };
-
-                let mut spans: Vec<Span<'static>> = Vec::new();
-                spans.push(Span::styled(" ".to_string(), base_style)); // leading space
-
-                for seg in segments {
-                    let text = expand_tabs(&seg.text);
-                    let style = match seg.kind {
-                        InlineKind::Equal => base_style,
-                        InlineKind::Changed => emphasis_style,
-                    };
-                    spans.push(Span::styled(text, style));
-                }
-
-                // Pad to max width for uniform highlight block.
-                let current_width: usize = spans.iter().map(|s| s.content.len()).sum();
-                if current_width < max_content_width {
-                    spans.push(Span::styled(
-                        " ".repeat(max_content_width - current_width),
-                        base_style,
-                    ));
-                }
-
-                code.push(ratatui::text::Line::from(spans));
-                continue;
+                spans.push(Span::styled(text, style));
             }
+
+            // Pad to max width for uniform highlight block.
+            let current_width: usize = spans.iter().map(|s| s.content.len()).sum();
+            if current_width < max_content_width {
+                spans.push(Span::styled(
+                    " ".repeat(max_content_width - current_width),
+                    base_style,
+                ));
+            }
+
+            code.push(ratatui::text::Line::from(spans));
+            continue;
         }
 
         // Default: uniform style for the whole line.
@@ -374,13 +356,16 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
             let gap_x = left_area.x + left_area.width;
             let pill_style = Style::default().fg(theme.gutter_dot);
 
+            let buf_area = frame.area();
             for &row in &block_rows {
                 if row >= scroll_y && row < viewport_end {
                     let screen_row = (row - scroll_y) as u16;
                     let gap_y = left_area.y + header_height + 1 + screen_row;
-                    frame.buffer_mut()[(gap_x, gap_y)]
-                        .set_symbol("█")
-                        .set_style(pill_style);
+                    if gap_x < buf_area.width && gap_y < buf_area.y + buf_area.height {
+                        frame.buffer_mut()[(gap_x, gap_y)]
+                            .set_symbol("█")
+                            .set_style(pill_style);
+                    }
                 }
             }
         }
