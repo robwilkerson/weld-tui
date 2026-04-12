@@ -206,7 +206,9 @@ fn render_file_pane(frame: &mut Frame, area: ratatui::layout::Rect, ctx: &PaneCo
     frame.render_widget(
         Paragraph::new(Span::styled(
             format!(" {}", ctx.filename),
-            Style::default().fg(theme.header_fg),
+            Style::default()
+                .fg(theme.header_fg)
+                .add_modifier(ratatui::style::Modifier::BOLD),
         ))
         .block(header_block),
         header_area,
