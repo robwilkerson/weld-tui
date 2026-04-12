@@ -2,8 +2,8 @@ use std::ops::Range;
 
 use similar::DiffOp;
 
-use crate::file_io::FileContent;
-use crate::inline_diff::InlineDiff;
+use super::inline_diff::InlineDiff;
+use super::io::Content;
 
 /// The kind of change a diff block represents.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -32,7 +32,7 @@ pub struct DiffResult {
 
 impl DiffResult {
     /// Compute the diff between two file contents.
-    pub fn compute(left: &FileContent, right: &FileContent) -> Self {
+    pub fn compute(left: &Content, right: &Content) -> Self {
         let left_text = left.text();
         let right_text = right.text();
         let diff = similar::TextDiff::from_lines(&left_text, &right_text);
@@ -131,8 +131,8 @@ fn compute_inline_diffs_str(left_lines: &[&str], right_lines: &[&str]) -> Vec<In
 mod tests {
     use super::*;
 
-    fn make_content(lines: &[&str]) -> FileContent {
-        FileContent::from_lines(lines)
+    fn make_content(lines: &[&str]) -> Content {
+        Content::from_lines(lines)
     }
 
     #[test]

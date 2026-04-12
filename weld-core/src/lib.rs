@@ -1,6 +1,3 @@
-pub mod diff;
-pub mod display;
-pub mod file_io;
-pub mod inline_diff;
+pub mod file;
 pub mod text;
 pub mod undo;

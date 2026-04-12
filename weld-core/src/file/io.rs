@@ -21,7 +21,7 @@ impl LineEnding {
 
 /// A file's content, split into lines with metadata.
 #[derive(Debug, Clone)]
-pub struct FileContent {
+pub struct Content {
     /// Path used to load this file content.
     pub(crate) path: PathBuf,
     /// File content split into lines, without line terminators.
@@ -32,7 +32,7 @@ pub struct FileContent {
     pub(crate) has_trailing_newline: bool,
 }
 
-impl FileContent {
+impl Content {
     /// Load a file from disk as UTF-8 text.
     /// Detects line ending style (LF vs CRLF) and normalizes internally.
     /// Fails loudly if the file doesn't exist or isn't readable.
@@ -45,7 +45,7 @@ impl FileContent {
         })?;
 
         if raw.is_empty() {
-            return Ok(FileContent {
+            return Ok(Content {
                 path: path.to_path_buf(),
                 lines: vec![],
                 line_ending: LineEnding::Lf,
@@ -71,7 +71,7 @@ impl FileContent {
             lines
         };
 
-        Ok(FileContent {
+        Ok(Content {
             path: path.to_path_buf(),
             lines,
             line_ending,
@@ -118,9 +118,9 @@ impl FileContent {
         self.lines.splice(range, replacement);
     }
 
-    /// Construct a FileContent from raw lines (for testing outside weld-core).
+    /// Construct a Content from raw lines (for testing outside weld-core).
     pub fn from_lines(lines: &[&str]) -> Self {
-        FileContent {
+        Content {
             path: PathBuf::new(),
             lines: lines.iter().map(|s| s.to_string()).collect(),
             line_ending: LineEnding::Lf,
@@ -147,7 +147,7 @@ pub fn shorten_dir(path: &str) -> String {
     path.display().to_string()
 }
 
-impl fmt::Display for FileContent {
+impl fmt::Display for Content {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for line in &self.lines {
             writeln!(f, "{line}")?;
@@ -166,7 +166,7 @@ mod tests {
         let path = dir.path().join("test.txt");
         fs::write(&path, "line1\nline2\nline3\n").unwrap();
 
-        let content = FileContent::load(&path).unwrap();
+        let content = Content::load(&path).unwrap();
 
         assert_eq!(content.lines, vec!["line1", "line2", "line3"]);
         assert_eq!(content.line_ending, LineEnding::Lf);
@@ -179,7 +179,7 @@ mod tests {
         let path = dir.path().join("test.txt");
         fs::write(&path, "line1\r\nline2\r\nline3\r\n").unwrap();
 
-        let content = FileContent::load(&path).unwrap();
+        let content = Content::load(&path).unwrap();
 
         assert_eq!(content.lines, vec!["line1", "line2", "line3"]);
         assert_eq!(content.line_ending, LineEnding::CrLf);
@@ -192,7 +192,7 @@ mod tests {
         let path = dir.path().join("test.txt");
         fs::write(&path, "line1\nline2").unwrap();
 
-        let content = FileContent::load(&path).unwrap();
+        let content = Content::load(&path).unwrap();
 
         assert_eq!(content.lines, vec!["line1", "line2"]);
         assert!(!content.has_trailing_newline);
@@ -204,7 +204,7 @@ mod tests {
         let path = dir.path().join("test.txt");
         fs::write(&path, "line1\nline2\n").unwrap();
 
-        let content = FileContent::load(&path).unwrap();
+        let content = Content::load(&path).unwrap();
         content.save().unwrap();
 
         let raw = fs::read_to_string(&path).unwrap();
@@ -217,7 +217,7 @@ mod tests {
         let path = dir.path().join("test.txt");
         fs::write(&path, "line1\r\nline2\r\n").unwrap();
 
-        let content = FileContent::load(&path).unwrap();
+        let content = Content::load(&path).unwrap();
         content.save().unwrap();
 
         let raw = fs::read_to_string(&path).unwrap();
@@ -230,7 +230,7 @@ mod tests {
         let path = dir.path().join("test.txt");
         fs::write(&path, "line1\nline2").unwrap();
 
-        let content = FileContent::load(&path).unwrap();
+        let content = Content::load(&path).unwrap();
         content.save().unwrap();
 
         let raw = fs::read_to_string(&path).unwrap();
@@ -243,7 +243,7 @@ mod tests {
         let path = dir.path().join("test.txt");
         fs::write(&path, "a\r\nb\r\n").unwrap();
 
-        let content = FileContent::load(&path).unwrap();
+        let content = Content::load(&path).unwrap();
         assert_eq!(content.text(), "a\nb\n");
     }
 
@@ -253,7 +253,7 @@ mod tests {
         let path = dir.path().join("test.txt");
         fs::write(&path, "a\nb").unwrap();
 
-        let content = FileContent::load(&path).unwrap();
+        let content = Content::load(&path).unwrap();
         assert_eq!(content.text(), "a\nb");
     }
 
@@ -263,7 +263,7 @@ mod tests {
         let path = dir.path().join("empty.txt");
         fs::write(&path, "").unwrap();
 
-        let content = FileContent::load(&path).unwrap();
+        let content = Content::load(&path).unwrap();
         assert!(content.lines.is_empty());
         assert!(!content.has_trailing_newline);
         assert_eq!(content.line_ending, LineEnding::Lf);
@@ -275,7 +275,7 @@ mod tests {
         let path = dir.path().join("empty.txt");
         fs::write(&path, "").unwrap();
 
-        let content = FileContent::load(&path).unwrap();
+        let content = Content::load(&path).unwrap();
         content.save().unwrap();
 
         let raw = fs::read_to_string(&path).unwrap();
@@ -289,7 +289,7 @@ mod tests {
         let original = "hello\nworld";
         fs::write(&path, original).unwrap();
 
-        let content = FileContent::load(&path).unwrap();
+        let content = Content::load(&path).unwrap();
         content.save().unwrap();
 
         let after = fs::read_to_string(&path).unwrap();
@@ -303,7 +303,7 @@ mod tests {
         let original = "func main() {\n\tfmt.Println(\"hello\")\n}\n";
         fs::write(&path, original).unwrap();
 
-        let content = FileContent::load(&path).unwrap();
+        let content = Content::load(&path).unwrap();
         content.save().unwrap();
 
         let after = fs::read_to_string(&path).unwrap();
@@ -316,7 +316,7 @@ mod tests {
         let path = dir.path().join("mixed.txt");
         fs::write(&path, "line1\r\nline2\nline3\n").unwrap();
 
-        let content = FileContent::load(&path).unwrap();
+        let content = Content::load(&path).unwrap();
         assert_eq!(content.line_ending, LineEnding::CrLf);
         assert_eq!(content.lines, vec!["line1", "line2", "line3"]);
 
@@ -355,7 +355,7 @@ mod tests {
     fn load_missing_file_fails() {
         let dir = tempfile::tempdir().unwrap();
         let missing = dir.path().join("missing.txt");
-        let result = FileContent::load(&missing);
+        let result = Content::load(&missing);
         assert!(result.is_err());
     }
 
@@ -363,7 +363,7 @@ mod tests {
     fn load_error_includes_path() {
         let dir = tempfile::tempdir().unwrap();
         let missing = dir.path().join("nope.txt");
-        let err = FileContent::load(&missing).unwrap_err();
+        let err = Content::load(&missing).unwrap_err();
         assert!(
             err.to_string().contains("nope.txt"),
             "error should include filename: {err}"

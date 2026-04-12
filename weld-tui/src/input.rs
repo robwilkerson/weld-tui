@@ -4,8 +4,8 @@ use crate::app::App;
 
 /// Handle a key press, updating app state.
 pub fn handle_key(app: &mut App, key: KeyEvent) {
-    let total_rows = app.display_rows.len();
-    let max_x = app.max_content_width as u16;
+    let total_rows = app.model.display_rows.len();
+    let max_x = app.model.max_content_width as u16;
     let code = key.code;
 
     // Handle `gg` — two consecutive `g` presses jump to first change block
@@ -50,19 +50,19 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
             last_block(app);
         }
         KeyCode::Char('L') => {
-            app.copy_left_to_right();
+            app.model.copy_left_to_right();
             scroll_to_current_block(app);
         }
         KeyCode::Char('H') => {
-            app.copy_right_to_left();
+            app.model.copy_right_to_left();
             scroll_to_current_block(app);
         }
         KeyCode::Char('u') => {
-            app.undo();
+            app.model.undo();
             scroll_to_current_block(app);
         }
         KeyCode::Char('r') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-            app.redo();
+            app.model.redo();
             scroll_to_current_block(app);
         }
         _ => {}
@@ -71,50 +71,51 @@ pub fn handle_key(app: &mut App, key: KeyEvent) {
 
 /// Jump to the first change block.
 fn first_block(app: &mut App) {
-    if app.change_block_indices.is_empty() {
+    if app.model.change_block_indices.is_empty() {
         return;
     }
-    app.current_block = 0;
+    app.model.current_block = 0;
     scroll_to_current_block(app);
 }
 
 /// Jump to the last change block.
 fn last_block(app: &mut App) {
-    if app.change_block_indices.is_empty() {
+    if app.model.change_block_indices.is_empty() {
         return;
     }
-    app.current_block = app.change_block_indices.len() - 1;
+    app.model.current_block = app.model.change_block_indices.len() - 1;
     scroll_to_current_block(app);
 }
 
 /// Advance to the next change block (clamped at last).
 fn next_block(app: &mut App) {
-    if app.change_block_indices.is_empty() {
+    if app.model.change_block_indices.is_empty() {
         return;
     }
-    if app.current_block < app.change_block_indices.len() - 1 {
-        app.current_block += 1;
+    if app.model.current_block < app.model.change_block_indices.len() - 1 {
+        app.model.current_block += 1;
     }
     scroll_to_current_block(app);
 }
 
 /// Retreat to the previous change block (clamped at first).
 fn prev_block(app: &mut App) {
-    if app.change_block_indices.is_empty() {
+    if app.model.change_block_indices.is_empty() {
         return;
     }
-    app.current_block = app.current_block.saturating_sub(1);
+    app.model.current_block = app.model.current_block.saturating_sub(1);
     scroll_to_current_block(app);
 }
 
 /// Scroll so the current change block is vertically centered in the viewport.
 pub fn scroll_to_current_block(app: &mut App) {
-    if app.change_block_indices.is_empty() || app.viewport.height == 0 {
+    if app.model.change_block_indices.is_empty() || app.viewport.height == 0 {
         return;
     }
 
-    let block_index = app.change_block_indices[app.current_block];
+    let block_index = app.model.change_block_indices[app.model.current_block];
     let block_start = app
+        .model
         .display_rows
         .iter()
         .position(|r| r.block_index == block_index)
@@ -122,7 +123,7 @@ pub fn scroll_to_current_block(app: &mut App) {
 
     let half_vp = app.viewport.height / 2;
     let target = block_start.saturating_sub(half_vp);
-    let max = app.viewport.scroll_y_max(app.display_rows.len());
+    let max = app.viewport.scroll_y_max(app.model.display_rows.len());
     app.viewport.scroll_y = target.min(max);
 }
 
@@ -130,7 +131,7 @@ pub fn scroll_to_current_block(app: &mut App) {
 mod tests {
     use super::*;
     use crossterm::event::KeyEvent;
-    use weld_core::file_io::FileContent;
+    use weld_core::file::io::Content;
 
     use crate::viewport::Viewport;
 
@@ -141,8 +142,8 @@ mod tests {
 
     fn test_app(left_lines: &[&str], right_lines: &[&str], viewport: (u16, u16)) -> App {
         let mut app = App::from_contents(
-            FileContent::from_lines(left_lines),
-            FileContent::from_lines(right_lines),
+            Content::from_lines(left_lines),
+            Content::from_lines(right_lines),
         );
         app.viewport = Viewport {
             scroll_y: 0,
@@ -219,12 +220,12 @@ mod tests {
         let left = vec!["a", "b", "c", "d", "e", "f", "g", "h"];
         let right = vec!["a", "X", "c", "d", "e", "Y", "g", "h"];
         let mut app = test_app(&left, &right, (40, 10));
-        app.current_block = 1;
+        app.model.current_block = 1;
 
         handle_key(&mut app, key(KeyCode::Char('g')));
         handle_key(&mut app, key(KeyCode::Char('g')));
 
-        assert_eq!(app.current_block, 0);
+        assert_eq!(app.model.current_block, 0);
     }
 
     #[test]
@@ -233,9 +234,12 @@ mod tests {
         let right = vec!["a", "X", "c", "d", "e", "Y", "g", "h"];
         let mut app = test_app(&left, &right, (40, 10));
 
-        assert_eq!(app.current_block, 0);
+        assert_eq!(app.model.current_block, 0);
         handle_key(&mut app, key(KeyCode::Char('G')));
-        assert_eq!(app.current_block, app.change_block_indices.len() - 1);
+        assert_eq!(
+            app.model.current_block,
+            app.model.change_block_indices.len() - 1
+        );
     }
 
     #[test]
@@ -276,7 +280,7 @@ mod tests {
         let app = test_app(&left, &right, (40, 20));
 
         // Display rows should include padding for alignment
-        assert!(app.display_rows.len() >= 5);
+        assert!(app.model.display_rows.len() >= 5);
     }
 
     #[test]
@@ -286,9 +290,9 @@ mod tests {
         let right = vec!["a", "X", "c", "d", "e", "Y", "g", "h"];
         let mut app = test_app(&left, &right, (40, 10));
 
-        assert_eq!(app.current_block, 0);
+        assert_eq!(app.model.current_block, 0);
         handle_key(&mut app, key(KeyCode::Char('J')));
-        assert_eq!(app.current_block, 1);
+        assert_eq!(app.model.current_block, 1);
     }
 
     #[test]
@@ -297,9 +301,9 @@ mod tests {
         let right = vec!["a", "X", "c", "d", "e", "Y", "g", "h"];
         let mut app = test_app(&left, &right, (40, 10));
 
-        app.current_block = 1;
+        app.model.current_block = 1;
         handle_key(&mut app, key(KeyCode::Char('K')));
-        assert_eq!(app.current_block, 0);
+        assert_eq!(app.model.current_block, 0);
     }
 
     #[test]
@@ -311,7 +315,7 @@ mod tests {
         // Only one change block — repeated Ctrl+j should stay at 0
         handle_key(&mut app, key(KeyCode::Char('J')));
         handle_key(&mut app, key(KeyCode::Char('J')));
-        assert_eq!(app.current_block, 0);
+        assert_eq!(app.model.current_block, 0);
     }
 
     #[test]
@@ -321,7 +325,7 @@ mod tests {
         let mut app = test_app(&left, &right, (40, 10));
 
         handle_key(&mut app, key(KeyCode::Char('K')));
-        assert_eq!(app.current_block, 0);
+        assert_eq!(app.model.current_block, 0);
     }
 
     #[test]
@@ -350,9 +354,9 @@ mod tests {
 
         handle_key(&mut app, key(KeyCode::Char('L')));
 
-        assert_eq!(app.right_content.lines(), &["a", "b", "c"]);
-        assert!(app.right_dirty);
-        assert!(!app.left_dirty);
+        assert_eq!(app.model.right_content.lines(), &["a", "b", "c"]);
+        assert!(app.model.right_dirty);
+        assert!(!app.model.left_dirty);
     }
 
     #[test]
@@ -363,9 +367,9 @@ mod tests {
 
         handle_key(&mut app, key(KeyCode::Char('H')));
 
-        assert_eq!(app.left_content.lines(), &["a", "X", "c"]);
-        assert!(app.left_dirty);
-        assert!(!app.right_dirty);
+        assert_eq!(app.model.left_content.lines(), &["a", "X", "c"]);
+        assert!(app.model.left_dirty);
+        assert!(!app.model.right_dirty);
     }
 
     #[test]
@@ -374,9 +378,9 @@ mod tests {
         let right = vec!["a", "X", "c"];
         let mut app = test_app(&left, &right, (40, 10));
 
-        assert_eq!(app.change_count, 1);
+        assert_eq!(app.model.change_count, 1);
         handle_key(&mut app, key(KeyCode::Char('L')));
-        assert_eq!(app.change_count, 0);
+        assert_eq!(app.model.change_count, 0);
     }
 
     #[test]
@@ -387,11 +391,11 @@ mod tests {
         let mut app = test_app(&left, &right, (40, 10));
 
         handle_key(&mut app, key(KeyCode::Char('J'))); // move to second block
-        assert_eq!(app.current_block, 1);
+        assert_eq!(app.model.current_block, 1);
 
         handle_key(&mut app, key(KeyCode::Char('L'))); // copy it away
-        assert_eq!(app.change_count, 1);
-        assert_eq!(app.current_block, 0); // clamped back
+        assert_eq!(app.model.change_count, 1);
+        assert_eq!(app.model.current_block, 0); // clamped back
     }
 
     #[test]
@@ -403,8 +407,8 @@ mod tests {
 
         handle_key(&mut app, key(KeyCode::Char('L')));
 
-        assert_eq!(app.right_content.lines(), &["a", "b"]);
-        assert_eq!(app.change_count, 0);
+        assert_eq!(app.model.right_content.lines(), &["a", "b"]);
+        assert_eq!(app.model.change_count, 0);
     }
 
     #[test]
@@ -415,8 +419,8 @@ mod tests {
 
         handle_key(&mut app, key(KeyCode::Char('L')));
 
-        assert!(!app.left_dirty);
-        assert!(!app.right_dirty);
+        assert!(!app.model.left_dirty);
+        assert!(!app.model.right_dirty);
     }
 
     /// Helper to create a KeyEvent with Ctrl modifier.
@@ -431,13 +435,13 @@ mod tests {
         let mut app = test_app(&left, &right, (40, 10));
 
         handle_key(&mut app, key(KeyCode::Char('L'))); // copy left→right
-        assert_eq!(app.right_content.lines(), &["a", "b", "c"]);
-        assert_eq!(app.change_count, 0);
+        assert_eq!(app.model.right_content.lines(), &["a", "b", "c"]);
+        assert_eq!(app.model.change_count, 0);
 
         handle_key(&mut app, key(KeyCode::Char('u'))); // undo
-        assert_eq!(app.right_content.lines(), &["a", "X", "c"]);
-        assert_eq!(app.change_count, 1);
-        assert!(!app.right_dirty);
+        assert_eq!(app.model.right_content.lines(), &["a", "X", "c"]);
+        assert_eq!(app.model.change_count, 1);
+        assert!(!app.model.right_dirty);
     }
 
     #[test]
@@ -450,9 +454,9 @@ mod tests {
         handle_key(&mut app, key(KeyCode::Char('u'))); // undo
         handle_key(&mut app, ctrl(KeyCode::Char('r'))); // redo
 
-        assert_eq!(app.right_content.lines(), &["a", "b", "c"]);
-        assert_eq!(app.change_count, 0);
-        assert!(app.right_dirty);
+        assert_eq!(app.model.right_content.lines(), &["a", "b", "c"]);
+        assert_eq!(app.model.change_count, 0);
+        assert!(app.model.right_dirty);
     }
 
     #[test]
@@ -462,8 +466,8 @@ mod tests {
         let mut app = test_app(&left, &right, (40, 10));
 
         handle_key(&mut app, key(KeyCode::Char('u'))); // no-op
-        assert_eq!(app.right_content.lines(), &["a", "X", "c"]);
-        assert_eq!(app.change_count, 1);
+        assert_eq!(app.model.right_content.lines(), &["a", "X", "c"]);
+        assert_eq!(app.model.change_count, 1);
     }
 
     #[test]
@@ -479,6 +483,6 @@ mod tests {
         handle_key(&mut app, ctrl(KeyCode::Char('r'))); // redo should be no-op
         // After the new copy, we copied block 0 again; the old redo is gone.
         // Just verify redo didn't crash or change state unexpectedly.
-        assert!(app.right_dirty);
+        assert!(app.model.right_dirty);
     }
 }

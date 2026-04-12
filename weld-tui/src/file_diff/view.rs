@@ -4,9 +4,9 @@ use ratatui::style::Style;
 use ratatui::text::Span;
 use ratatui::widgets::{Block, Borders, Paragraph};
 
-use weld_core::diff::{BlockKind, DiffResult};
-use weld_core::display::DisplayRow;
-use weld_core::inline_diff::InlineKind;
+use weld_core::file::diff::{BlockKind, DiffResult};
+use weld_core::file::display::DisplayRow;
+use weld_core::file::inline_diff::InlineKind;
 use weld_core::text::expand_tabs;
 
 use crate::app::App;
@@ -152,7 +152,7 @@ fn inline_diff_for_row<'a>(
     row: &DisplayRow,
     side: Side,
     diff: &'a DiffResult,
-) -> Option<&'a weld_core::inline_diff::InlineDiff> {
+) -> Option<&'a weld_core::file::inline_diff::InlineDiff> {
     let block = &diff.blocks[row.block_index];
     // Compute offset of this row within its block.
     let offset = match side {
@@ -252,10 +252,11 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     };
 
     let max_lines = app
+        .model
         .left_content
         .lines()
         .len()
-        .max(app.right_content.lines().len());
+        .max(app.model.right_content.lines().len());
     let digit_width = max_lines.to_string().len().max(2);
     let header_height = 3u16;
 
@@ -269,8 +270,10 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         .saturating_sub(gutter_cols);
     app.viewport.height = inner_height;
     app.viewport.width = inner_code_width;
-    app.viewport
-        .clamp(app.display_rows.len(), app.max_content_width as u16);
+    app.viewport.clamp(
+        app.model.display_rows.len(),
+        app.model.max_content_width as u16,
+    );
 
     // On first render, scroll to center the first change block.
     if app.needs_initial_scroll {
@@ -280,11 +283,11 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
 
     // All mutation done — borrow theme for rendering.
     let theme = &app.theme;
-    let max_content_width = app.max_content_width;
-    let active_block_index = if app.change_block_indices.is_empty() {
+    let max_content_width = app.model.max_content_width;
+    let active_block_index = if app.model.change_block_indices.is_empty() {
         None
     } else {
-        Some(app.change_block_indices[app.current_block])
+        Some(app.model.change_block_indices[app.model.current_block])
     };
 
     render_file_pane(
@@ -293,16 +296,16 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         &PaneContext {
             dir: &app.left_dir,
             filename: &app.left_filename,
-            lines: app.left_content.lines(),
-            display_rows: &app.display_rows,
-            diff: &app.diff,
+            lines: app.model.left_content.lines(),
+            display_rows: &app.model.display_rows,
+            diff: &app.model.diff,
             side: Side::Left,
             scroll_y: app.viewport.scroll_y,
             scroll_x: app.viewport.scroll_x,
             digit_width,
             max_content_width,
             active_block_index,
-            dirty: app.left_dirty,
+            dirty: app.model.left_dirty,
             theme,
         },
     );
@@ -312,26 +315,27 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         &PaneContext {
             dir: &app.right_dir,
             filename: &app.right_filename,
-            lines: app.right_content.lines(),
-            display_rows: &app.display_rows,
-            diff: &app.diff,
+            lines: app.model.right_content.lines(),
+            display_rows: &app.model.display_rows,
+            diff: &app.model.diff,
             side: Side::Right,
             scroll_y: app.viewport.scroll_y,
             scroll_x: app.viewport.scroll_x,
             digit_width,
             max_content_width,
             active_block_index,
-            dirty: app.right_dirty,
+            dirty: app.model.right_dirty,
             theme,
         },
     );
 
     // Pill indicator in the 1-column gap marking the current change block.
-    if !app.change_block_indices.is_empty() {
-        let block_index = app.change_block_indices[app.current_block];
+    if !app.model.change_block_indices.is_empty() {
+        let block_index = app.model.change_block_indices[app.model.current_block];
 
         // Find the display row range for this block.
         let block_rows: Vec<usize> = app
+            .model
             .display_rows
             .iter()
             .enumerate()
@@ -375,7 +379,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         super::minimap::render(
             frame.buffer_mut(),
             minimap_content,
-            &app.display_rows,
+            &app.model.display_rows,
             app.viewport.scroll_y,
             app.viewport.height,
             active_block_index,
@@ -384,11 +388,15 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     }
 
     // Status bar
-    let change_count = app.change_count;
+    let change_count = app.model.change_count;
     let hint_text = if change_count == 0 {
         " Files are identical  [q → quit]".to_string()
     } else {
-        format!(" {}/{}  [q → quit]", app.current_block + 1, change_count,)
+        format!(
+            " {}/{}  [q → quit]",
+            app.model.current_block + 1,
+            change_count,
+        )
     };
     let hint_style = Style::default().fg(theme.status_bar_fg);
     frame.render_widget(

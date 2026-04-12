@@ -2,8 +2,8 @@ use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 
-use weld_core::diff::BlockKind;
-use weld_core::display::DisplayRow;
+use weld_core::file::diff::BlockKind;
+use weld_core::file::display::DisplayRow;
 
 use crate::theme::Theme;
 

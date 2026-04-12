@@ -1,4 +1,4 @@
-use crate::diff::{BlockKind, DiffResult};
+use super::diff::{BlockKind, DiffResult};
 
 /// What a single row in the display represents.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -82,7 +82,7 @@ pub fn build_display_rows(diff: &DiffResult) -> Vec<DisplayRow> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::diff::DiffBlock;
+    use super::super::diff::DiffBlock;
 
     fn equal(left_start: usize, right_start: usize, len: usize) -> DiffBlock {
         DiffBlock {
