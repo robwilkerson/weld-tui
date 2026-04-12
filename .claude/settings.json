@@ -7,7 +7,11 @@
       "Bash(cargo test:*)",
       "Bash(cargo check:*)",
       "Bash(cargo fmt:*)",
-      "Bash(cargo clippy:*)"
+      "Bash(cargo clippy:*)",
+      "Bash(cargo upgrade:*)",
+      "Bash(cargo metadata:*)",
+      "Edit(SESSION_CONTEXT.md)",
+      "Write(SESSION_CONTEXT.md)"
     ]
   },
   "enabledPlugins": {
