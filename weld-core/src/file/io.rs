@@ -134,7 +134,8 @@ impl Content {
 /// (e.g., /Users/al matching /Users/alice).
 pub fn shorten_dir(path: &str) -> String {
     let path = Path::new(path);
-    if let Some(home) = std::env::var_os("HOME") {
+    let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE"));
+    if let Some(home) = home {
         let home = PathBuf::from(home);
         if let Ok(rest) = path.strip_prefix(&home) {
             return if rest.as_os_str().is_empty() {
