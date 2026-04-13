@@ -147,6 +147,7 @@ impl DiffModel {
                 self.right_dirty = true;
             }
         }
+        self.current_block = entry.previous_block;
         self.recompute_diff();
     }
 
@@ -390,5 +391,88 @@ mod tests {
         assert!(model.right_dirty);
         model.undo();
         assert!(!model.right_dirty);
+    }
+
+    #[test]
+    fn current_block_restored_on_undo() {
+        // Two change blocks: line 1 and line 3 differ.
+        let left = content_from(&["a", "b", "c", "d", "e"]);
+        let right = content_from(&["a", "X", "c", "Y", "e"]);
+        let mut model = DiffModel::new(left, right);
+
+        assert_eq!(model.change_count, 2);
+        assert_eq!(model.current_block, 0);
+
+        // Navigate to block 1, then copy.
+        model.current_block = 1;
+        model.copy_left_to_right();
+        // Block 1 resolved — only 1 change remains, current_block clamped to 0.
+        assert_eq!(model.change_count, 1);
+        assert_eq!(model.current_block, 0);
+
+        // Undo should restore current_block to 1 (where the edit was made).
+        model.undo();
+        assert_eq!(model.change_count, 2);
+        assert_eq!(model.current_block, 1);
+    }
+
+    #[test]
+    fn current_block_restored_on_redo() {
+        let left = content_from(&["a", "b", "c", "d", "e"]);
+        let right = content_from(&["a", "X", "c", "Y", "e"]);
+        let mut model = DiffModel::new(left, right);
+
+        model.current_block = 1;
+        model.copy_left_to_right();
+        model.undo();
+        assert_eq!(model.current_block, 1);
+
+        // Redo should restore to the same block the edit targeted.
+        model.redo();
+        assert_eq!(model.change_count, 1);
+        // Block 1 resolved again, clamped to 0.
+        assert_eq!(model.current_block, 0);
+    }
+
+    #[test]
+    fn interleaved_copy_both_sides_undo_redo() {
+        // Two changes: line 1 and line 3.
+        let left = content_from(&["a", "b", "c", "d", "e"]);
+        let right = content_from(&["a", "X", "c", "Y", "e"]);
+        let mut model = DiffModel::new(left, right);
+
+        // Copy block 0 left→right (resolves "b" vs "X").
+        model.copy_left_to_right();
+        assert_eq!(model.right_content.lines(), &["a", "b", "c", "Y", "e"]);
+        assert_eq!(model.change_count, 1);
+
+        // Copy remaining block right→left (resolves "d" vs "Y").
+        model.copy_right_to_left();
+        assert_eq!(model.left_content.lines(), &["a", "b", "c", "Y", "e"]);
+        assert_eq!(model.change_count, 0);
+        assert!(model.left_dirty);
+        assert!(model.right_dirty);
+
+        // Undo the R→L copy.
+        model.undo();
+        assert_eq!(model.left_content.lines(), &["a", "b", "c", "d", "e"]);
+        assert_eq!(model.right_content.lines(), &["a", "b", "c", "Y", "e"]);
+        assert_eq!(model.change_count, 1);
+        assert!(!model.left_dirty);
+
+        // Undo the L→R copy.
+        model.undo();
+        assert_eq!(model.right_content.lines(), &["a", "X", "c", "Y", "e"]);
+        assert_eq!(model.change_count, 2);
+        assert!(!model.right_dirty);
+
+        // Redo both in order.
+        model.redo();
+        assert_eq!(model.right_content.lines(), &["a", "b", "c", "Y", "e"]);
+        assert_eq!(model.change_count, 1);
+
+        model.redo();
+        assert_eq!(model.left_content.lines(), &["a", "b", "c", "Y", "e"]);
+        assert_eq!(model.change_count, 0);
     }
 }
