@@ -1,0 +1,8 @@
+# weld configuration
+# All settings are optional — missing keys fall back to the defaults shown below.
+#
+# New settings added in future releases are NOT automatically appended to this
+# file. Check the release notes to discover new options.
+
+# Show the minimap pane on the right edge of the diff view.
+show_minimap = true

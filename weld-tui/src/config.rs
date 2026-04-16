@@ -8,6 +8,12 @@
 //! not just Linux. This is deliberate: users who prefer dotfile-style config
 //! layouts can set it once and get consistent behavior everywhere.
 //!
+//! On first launch, if no file exists at the resolved path, we drop a
+//! commented template with all defaults so users have something to edit.
+//! This happens only when the file is absent; existing files are never
+//! touched. New settings added in later releases will *not* appear in
+//! existing users' files — release notes should itemize new keys.
+//!
 //! A missing file is not an error — defaults are used. A malformed file, an
 //! unresolvable config directory, or any non-`NotFound` IO error fails loudly.
 
@@ -18,14 +24,20 @@ use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
+/// Commented TOML template written to disk on first launch. Keep in sync with
+/// `Config::default()` — the test `default_template_matches_default_config`
+/// asserts they agree.
+const DEFAULT_CONFIG_TEMPLATE: &str = include_str!("default_config.toml");
+
 /// Top-level config.
 ///
 /// Uses container-level `#[serde(default)]`: the whole struct is built from
 /// `Config::default()` first, then fields present in the TOML overwrite.
-/// When adding a new field, update `Default` to carry its default value.
+/// When adding a new field, update `Default` to carry its default value
+/// *and* add a corresponding line to `default_config.toml`.
 ///
 /// `deny_unknown_fields` catches typos and stale keys after refactors.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
     pub show_minimap: bool,
@@ -38,13 +50,24 @@ impl Default for Config {
 }
 
 impl Config {
-    /// Load config from the default path. Missing file → defaults.
+    /// Load config from the default path.
     ///
-    /// Fails loudly if the config directory cannot be resolved (no
-    /// `XDG_CONFIG_HOME` and no platform-native config dir) — a user who
-    /// expected their config to be read deserves to know it wasn't.
+    /// On first launch (no file present) this writes a commented template at
+    /// the resolved path, then loads it. Fails loudly if the config directory
+    /// cannot be resolved. Failure to write the template is logged to stderr
+    /// but not fatal — defaults still load.
     pub fn load() -> Result<Self, ConfigError> {
         let path = default_path().ok_or(ConfigError::NoConfigDir)?;
+
+        if !path.try_exists().unwrap_or(false)
+            && let Err(e) = write_default_template(&path)
+        {
+            eprintln!(
+                "weld: could not create default config at {}: {e}",
+                path.display(),
+            );
+        }
+
         Self::load_from(&path)
     }
 
@@ -77,6 +100,16 @@ fn default_path() -> Option<PathBuf> {
         return Some(PathBuf::from(xdg).join("weld/config.toml"));
     }
     dirs::config_dir().map(|d| d.join("weld/config.toml"))
+}
+
+/// Write the commented default template to `path`, creating parent dirs as
+/// needed. Intended only for first-launch use — callers must verify the file
+/// does not already exist before calling, or user edits will be clobbered.
+fn write_default_template(path: &Path) -> std::io::Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(path, DEFAULT_CONFIG_TEMPLATE)
 }
 
 #[derive(Debug)]
@@ -167,5 +200,28 @@ mod tests {
         let f = write_tmp("not_a_real_setting = true\n");
         let err = Config::load_from(f.path()).expect_err("should fail on unknown key");
         assert!(matches!(err, ConfigError::Parse { .. }));
+    }
+
+    #[test]
+    fn default_template_matches_default_config() {
+        let from_template: Config =
+            toml::from_str(DEFAULT_CONFIG_TEMPLATE).expect("template must parse");
+        assert_eq!(from_template, Config::default());
+    }
+
+    #[test]
+    fn write_default_template_creates_parent_dirs_and_file() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("nested/weld/config.toml");
+        assert!(!path.exists());
+
+        write_default_template(&path).expect("write");
+
+        let written = fs::read_to_string(&path).expect("read");
+        assert_eq!(written, DEFAULT_CONFIG_TEMPLATE);
+
+        // The written file must parse back into the default Config.
+        let cfg = Config::load_from(&path).expect("load");
+        assert_eq!(cfg, Config::default());
     }
 }
