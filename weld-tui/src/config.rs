@@ -4,8 +4,12 @@
 //! 1. `$XDG_CONFIG_HOME/weld/config.toml` if the variable is set and non-empty
 //! 2. Platform-native config dir (`dirs::config_dir`) joined with `weld/config.toml`
 //!
-//! A missing file is not an error — defaults are used. A malformed file
-//! fails loudly.
+//! `XDG_CONFIG_HOME` is honored on **all** platforms (macOS/Windows included),
+//! not just Linux. This is deliberate: users who prefer dotfile-style config
+//! layouts can set it once and get consistent behavior everywhere.
+//!
+//! A missing file is not an error — defaults are used. A malformed file, an
+//! unresolvable config directory, or any non-`NotFound` IO error fails loudly.
 
 use std::env;
 use std::fmt;
@@ -14,8 +18,13 @@ use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
-/// Top-level config. New fields should add `#[serde(default = "...")]` with a
-/// named default fn so individual defaults stay colocated with the field.
+/// Top-level config.
+///
+/// Uses container-level `#[serde(default)]`: the whole struct is built from
+/// `Config::default()` first, then fields present in the TOML overwrite.
+/// When adding a new field, update `Default` to carry its default value.
+///
+/// `deny_unknown_fields` catches typos and stale keys after refactors.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
@@ -30,11 +39,13 @@ impl Default for Config {
 
 impl Config {
     /// Load config from the default path. Missing file → defaults.
+    ///
+    /// Fails loudly if the config directory cannot be resolved (no
+    /// `XDG_CONFIG_HOME` and no platform-native config dir) — a user who
+    /// expected their config to be read deserves to know it wasn't.
     pub fn load() -> Result<Self, ConfigError> {
-        match default_path() {
-            Some(path) => Self::load_from(&path),
-            None => Ok(Self::default()),
-        }
+        let path = default_path().ok_or(ConfigError::NoConfigDir)?;
+        Self::load_from(&path)
     }
 
     /// Load config from an explicit path. Missing file → defaults.
@@ -54,6 +65,11 @@ impl Config {
 }
 
 /// Resolve the default config path, honoring `XDG_CONFIG_HOME` first.
+///
+/// Returns `None` only if `XDG_CONFIG_HOME` is unset/empty **and**
+/// `dirs::config_dir()` cannot resolve a path (no `$HOME`, stripped-down
+/// container, etc.). Callers should treat `None` as an error, not as a cue
+/// to silently use defaults.
 fn default_path() -> Option<PathBuf> {
     if let Ok(xdg) = env::var("XDG_CONFIG_HOME")
         && !xdg.is_empty()
@@ -65,6 +81,9 @@ fn default_path() -> Option<PathBuf> {
 
 #[derive(Debug)]
 pub enum ConfigError {
+    /// Neither `XDG_CONFIG_HOME` nor the platform-native config dir could be
+    /// resolved — we have nowhere to look for a config file.
+    NoConfigDir,
     Read {
         path: PathBuf,
         source: std::io::Error,
@@ -76,13 +95,18 @@ pub enum ConfigError {
 }
 
 impl fmt::Display for ConfigError {
+    // Top-level message is context only; the underlying cause is exposed via
+    // `source()` and rendered by the caller's error reporter.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ConfigError::Read { path, source } => {
-                write!(f, "failed to read config at {}: {source}", path.display())
+            ConfigError::NoConfigDir => {
+                f.write_str("could not resolve config directory: set $XDG_CONFIG_HOME or $HOME")
             }
-            ConfigError::Parse { path, source } => {
-                write!(f, "failed to parse config at {}: {source}", path.display())
+            ConfigError::Read { path, .. } => {
+                write!(f, "failed to read config at {}", path.display())
+            }
+            ConfigError::Parse { path, .. } => {
+                write!(f, "failed to parse config at {}", path.display())
             }
         }
     }
@@ -91,6 +115,7 @@ impl fmt::Display for ConfigError {
 impl std::error::Error for ConfigError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            ConfigError::NoConfigDir => None,
             ConfigError::Read { source, .. } => Some(source),
             ConfigError::Parse { source, .. } => Some(source),
         }
@@ -110,7 +135,8 @@ mod tests {
 
     #[test]
     fn defaults_when_file_missing() {
-        let missing = PathBuf::from("/nonexistent/weld-test/config.toml");
+        let dir = tempfile::tempdir().expect("tempdir");
+        let missing = dir.path().join("does-not-exist.toml");
         let cfg = Config::load_from(&missing).expect("missing file is ok");
         assert!(cfg.show_minimap);
     }

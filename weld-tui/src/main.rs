@@ -7,6 +7,7 @@ mod theme;
 mod viewport;
 
 use std::path::PathBuf;
+use std::process::ExitCode;
 use std::time::Duration;
 
 use clap::Parser;
@@ -24,7 +25,29 @@ struct Cli {
     right: PathBuf,
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> ExitCode {
+    match run() {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            report_error(&*e);
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// Print an error and its `source()` chain using `Display` rather than `Debug`.
+/// The default `Termination` impl for `Result<_, E>` uses `Debug`, which
+/// bypasses our hand-written `Display` impls and produces unreadable output.
+fn report_error(err: &(dyn std::error::Error + 'static)) {
+    eprintln!("error: {err}");
+    let mut source = err.source();
+    while let Some(e) = source {
+        eprintln!("  caused by: {e}");
+        source = e.source();
+    }
+}
+
+fn run() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
     let config = Config::load()?;
