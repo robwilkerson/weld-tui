@@ -20,6 +20,7 @@
 use std::env;
 use std::fmt;
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
@@ -67,9 +68,9 @@ impl Config {
     pub fn load() -> Result<Self, ConfigError> {
         let path = default_path().ok_or(ConfigError::NoConfigDir)?;
 
-        if !path.try_exists().unwrap_or(false)
-            && let Err(e) = write_default_template(&path)
-        {
+        // Always try to create — `write_default_template` is atomic and a
+        // no-op if the file already exists, so no check-then-write race.
+        if let Err(e) = write_default_template(&path) {
             eprintln!(
                 "weld: could not create default config at {}: {e}",
                 path.display(),
@@ -82,16 +83,32 @@ impl Config {
     /// Load config from an explicit path. Missing file → defaults.
     pub fn load_from(path: &Path) -> Result<Self, ConfigError> {
         match fs::read_to_string(path) {
-            Ok(contents) => toml::from_str(&contents).map_err(|source| ConfigError::Parse {
-                path: path.to_path_buf(),
-                source,
-            }),
+            Ok(contents) => {
+                let cfg: Config =
+                    toml::from_str(&contents).map_err(|source| ConfigError::Parse {
+                        path: path.to_path_buf(),
+                        source,
+                    })?;
+                cfg.validate(path)
+            }
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Self::default()),
             Err(source) => Err(ConfigError::Read {
                 path: path.to_path_buf(),
                 source,
             }),
         }
+    }
+
+    /// Reject semantically-invalid combinations that serde cannot catch
+    /// (e.g., `tab_width = 0` would panic inside `expand_tabs`).
+    fn validate(self, path: &Path) -> Result<Self, ConfigError> {
+        if self.tab_width == 0 {
+            return Err(ConfigError::Invalid {
+                path: path.to_path_buf(),
+                message: "tab_width must be greater than 0".to_string(),
+            });
+        }
+        Ok(self)
     }
 }
 
@@ -110,14 +127,22 @@ fn default_path() -> Option<PathBuf> {
     dirs::config_dir().map(|d| d.join("weld/config.toml"))
 }
 
-/// Write the commented default template to `path`, creating parent dirs as
-/// needed. Intended only for first-launch use — callers must verify the file
-/// does not already exist before calling, or user edits will be clobbered.
+/// Atomically write the commented default template at `path`, creating parent
+/// dirs as needed. A no-op if the file already exists — safe to call on every
+/// launch without a pre-check.
 fn write_default_template(path: &Path) -> std::io::Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    fs::write(path, DEFAULT_CONFIG_TEMPLATE)
+    match fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+    {
+        Ok(mut file) => file.write_all(DEFAULT_CONFIG_TEMPLATE.as_bytes()),
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => Ok(()),
+        Err(e) => Err(e),
+    }
 }
 
 #[derive(Debug)]
@@ -133,6 +158,9 @@ pub enum ConfigError {
         path: PathBuf,
         source: toml::de::Error,
     },
+    /// A semantically-invalid value survived deserialization — e.g., a type
+    /// that serde accepts but that we refuse to run with.
+    Invalid { path: PathBuf, message: String },
 }
 
 impl fmt::Display for ConfigError {
@@ -149,6 +177,9 @@ impl fmt::Display for ConfigError {
             ConfigError::Parse { path, .. } => {
                 write!(f, "failed to parse config at {}", path.display())
             }
+            ConfigError::Invalid { path, message } => {
+                write!(f, "invalid config at {}: {message}", path.display())
+            }
         }
     }
 }
@@ -156,7 +187,7 @@ impl fmt::Display for ConfigError {
 impl std::error::Error for ConfigError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            ConfigError::NoConfigDir => None,
+            ConfigError::NoConfigDir | ConfigError::Invalid { .. } => None,
             ConfigError::Read { source, .. } => Some(source),
             ConfigError::Parse { source, .. } => Some(source),
         }
@@ -231,5 +262,25 @@ mod tests {
         // The written file must parse back into the default Config.
         let cfg = Config::load_from(&path).expect("load");
         assert_eq!(cfg, Config::default());
+    }
+
+    #[test]
+    fn write_default_template_preserves_existing_file() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("config.toml");
+        fs::write(&path, "show_minimap = false\n").expect("seed existing file");
+
+        // Second call must be a no-op — the user's edits survive.
+        write_default_template(&path).expect("no-op on existing");
+
+        let contents = fs::read_to_string(&path).expect("read");
+        assert_eq!(contents, "show_minimap = false\n");
+    }
+
+    #[test]
+    fn rejects_tab_width_zero() {
+        let f = write_tmp("tab_width = 0\n");
+        let err = Config::load_from(f.path()).expect_err("zero tab_width must fail");
+        assert!(matches!(err, ConfigError::Invalid { .. }));
     }
 }
