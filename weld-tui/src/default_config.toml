@@ -6,3 +6,9 @@
 
 # Show the minimap pane on the right edge of the diff view.
 show_minimap = true
+
+# Maximum number of undoable operations retained in the undo stack.
+undo_capacity = 100
+
+# Columns per tab stop when expanding `\t` for display.
+tab_width = 4

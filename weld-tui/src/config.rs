@@ -41,11 +41,19 @@ const DEFAULT_CONFIG_TEMPLATE: &str = include_str!("default_config.toml");
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
     pub show_minimap: bool,
+    /// Maximum number of undoable operations retained in the undo stack.
+    pub undo_capacity: usize,
+    /// Columns per tab stop when expanding `\t` for display.
+    pub tab_width: usize,
 }
 
 impl Default for Config {
     fn default() -> Self {
-        Self { show_minimap: true }
+        Self {
+            show_minimap: true,
+            undo_capacity: 100,
+            tab_width: 4,
+        }
     }
 }
 

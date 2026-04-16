@@ -11,18 +11,22 @@ fn fixtures_dir() -> PathBuf {
         .join("test-fixtures")
 }
 
+// Arbitrary values — these integration tests do not exercise undo/tab behavior.
+const TEST_UNDO_CAPACITY: usize = 100;
+const TEST_TAB_WIDTH: usize = 4;
+
 fn load_pair(subdir: &str) -> DiffModel {
     let dir = fixtures_dir().join(subdir);
     let left = Content::load(&dir.join("left.txt")).expect("load left");
     let right = Content::load(&dir.join("right.txt")).expect("load right");
-    DiffModel::new(left, right)
+    DiffModel::new(left, right, TEST_UNDO_CAPACITY, TEST_TAB_WIDTH)
 }
 
 fn load_go_pair(subdir: &str) -> DiffModel {
     let dir = fixtures_dir().join(subdir);
     let left = Content::load(&dir.join("left.go")).expect("load left");
     let right = Content::load(&dir.join("right.go")).expect("load right");
-    DiffModel::new(left, right)
+    DiffModel::new(left, right, TEST_UNDO_CAPACITY, TEST_TAB_WIDTH)
 }
 
 // --- identical ---

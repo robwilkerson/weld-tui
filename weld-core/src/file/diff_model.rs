@@ -6,8 +6,6 @@ use super::io::Content;
 use crate::text::expand_tabs;
 use crate::undo::UndoStack;
 
-const DEFAULT_UNDO_CAPACITY: usize = 100;
-
 /// Which side of the diff was modified.
 #[derive(Clone, Debug)]
 enum Side {
@@ -41,7 +39,7 @@ struct DerivedState {
     change_count: usize,
 }
 
-fn compute_derived(left: &Content, right: &Content) -> DerivedState {
+fn compute_derived(left: &Content, right: &Content, tab_width: usize) -> DerivedState {
     let diff = DiffResult::compute(left, right);
     let display_rows = display::build_display_rows(&diff);
 
@@ -49,7 +47,7 @@ fn compute_derived(left: &Content, right: &Content) -> DerivedState {
         .lines()
         .iter()
         .chain(right.lines().iter())
-        .map(|l| expand_tabs(l).len() + 1)
+        .map(|l| expand_tabs(l, tab_width).len() + 1)
         .max()
         .unwrap_or(0);
 
@@ -84,12 +82,19 @@ pub struct DiffModel {
     pub current_block: usize,
     pub left_dirty: bool,
     pub right_dirty: bool,
+    /// Columns per tab stop. Affects `max_content_width` and rendering.
+    pub tab_width: usize,
     undo_stack: UndoStack<UndoEntry>,
 }
 
 impl DiffModel {
-    pub fn new(left_content: Content, right_content: Content) -> Self {
-        let derived = compute_derived(&left_content, &right_content);
+    pub fn new(
+        left_content: Content,
+        right_content: Content,
+        undo_capacity: usize,
+        tab_width: usize,
+    ) -> Self {
+        let derived = compute_derived(&left_content, &right_content, tab_width);
 
         DiffModel {
             left_content,
@@ -102,7 +107,8 @@ impl DiffModel {
             current_block: 0,
             left_dirty: false,
             right_dirty: false,
-            undo_stack: UndoStack::new(DEFAULT_UNDO_CAPACITY),
+            tab_width,
+            undo_stack: UndoStack::new(undo_capacity),
         }
     }
 
@@ -230,7 +236,7 @@ impl DiffModel {
 
     /// Recompute diff, display rows, and navigation indices after a mutation.
     fn recompute_diff(&mut self) {
-        let derived = compute_derived(&self.left_content, &self.right_content);
+        let derived = compute_derived(&self.left_content, &self.right_content, self.tab_width);
         self.diff = derived.diff;
         self.display_rows = derived.display_rows;
         self.max_content_width = derived.max_content_width;
@@ -251,6 +257,9 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
 
+    const TEST_UNDO_CAPACITY: usize = 100;
+    const TEST_TAB_WIDTH: usize = 4;
+
     fn content_from(lines: &[&str]) -> Content {
         Content {
             path: PathBuf::from("test"),
@@ -260,11 +269,15 @@ mod tests {
         }
     }
 
+    fn new_model(left: Content, right: Content) -> DiffModel {
+        DiffModel::new(left, right, TEST_UNDO_CAPACITY, TEST_TAB_WIDTH)
+    }
+
     #[test]
     fn copy_left_to_right_updates_content() {
         let left = content_from(&["a", "b", "c"]);
         let right = content_from(&["a", "X", "c"]);
-        let mut model = DiffModel::new(left, right);
+        let mut model = new_model(left, right);
 
         assert_eq!(model.change_count, 1);
         model.copy_left_to_right();
@@ -277,7 +290,7 @@ mod tests {
     fn copy_right_to_left_updates_content() {
         let left = content_from(&["a", "b", "c"]);
         let right = content_from(&["a", "X", "c"]);
-        let mut model = DiffModel::new(left, right);
+        let mut model = new_model(left, right);
 
         model.copy_right_to_left();
         assert_eq!(model.left_content.lines(), &["a", "X", "c"]);
@@ -288,7 +301,7 @@ mod tests {
     fn undo_restores_original_content() {
         let left = content_from(&["a", "b", "c"]);
         let right = content_from(&["a", "X", "c"]);
-        let mut model = DiffModel::new(left, right);
+        let mut model = new_model(left, right);
 
         model.copy_left_to_right();
         assert_eq!(model.change_count, 0);
@@ -303,7 +316,7 @@ mod tests {
     fn redo_reapplies_undone_copy() {
         let left = content_from(&["a", "b", "c"]);
         let right = content_from(&["a", "X", "c"]);
-        let mut model = DiffModel::new(left, right);
+        let mut model = new_model(left, right);
 
         model.copy_left_to_right();
         model.undo();
@@ -318,7 +331,7 @@ mod tests {
         // Left has 2 lines in the changed block, right has 1.
         let left = content_from(&["a", "b", "c", "d"]);
         let right = content_from(&["a", "X", "d"]);
-        let mut model = DiffModel::new(left, right);
+        let mut model = new_model(left, right);
 
         model.copy_left_to_right();
         assert_eq!(model.right_content.lines(), &["a", "b", "c", "d"]);
@@ -334,7 +347,7 @@ mod tests {
     fn multiple_undo_redo_round_trips() {
         let left = content_from(&["a", "b", "c"]);
         let right = content_from(&["a", "X", "c"]);
-        let mut model = DiffModel::new(left, right);
+        let mut model = new_model(left, right);
 
         model.copy_left_to_right();
         for _ in 0..3 {
@@ -349,7 +362,7 @@ mod tests {
     fn new_copy_after_undo_clears_redo() {
         let left = content_from(&["a", "b"]);
         let right = content_from(&["a", "X"]);
-        let mut model = DiffModel::new(left, right);
+        let mut model = new_model(left, right);
 
         model.copy_left_to_right();
         model.undo();
@@ -364,7 +377,7 @@ mod tests {
     fn undo_noop_on_empty_stack() {
         let left = content_from(&["a"]);
         let right = content_from(&["a"]);
-        let mut model = DiffModel::new(left, right);
+        let mut model = new_model(left, right);
 
         model.undo(); // should not panic
         assert!(!model.can_undo());
@@ -374,7 +387,7 @@ mod tests {
     fn redo_noop_on_empty_stack() {
         let left = content_from(&["a"]);
         let right = content_from(&["a"]);
-        let mut model = DiffModel::new(left, right);
+        let mut model = new_model(left, right);
 
         model.redo(); // should not panic
         assert!(!model.can_redo());
@@ -384,7 +397,7 @@ mod tests {
     fn dirty_flag_restored_on_undo() {
         let left = content_from(&["a", "b"]);
         let right = content_from(&["a", "X"]);
-        let mut model = DiffModel::new(left, right);
+        let mut model = new_model(left, right);
 
         assert!(!model.right_dirty);
         model.copy_left_to_right();
@@ -398,7 +411,7 @@ mod tests {
         // Two change blocks: line 1 and line 3 differ.
         let left = content_from(&["a", "b", "c", "d", "e"]);
         let right = content_from(&["a", "X", "c", "Y", "e"]);
-        let mut model = DiffModel::new(left, right);
+        let mut model = new_model(left, right);
 
         assert_eq!(model.change_count, 2);
         assert_eq!(model.current_block, 0);
@@ -420,7 +433,7 @@ mod tests {
     fn current_block_restored_on_redo() {
         let left = content_from(&["a", "b", "c", "d", "e"]);
         let right = content_from(&["a", "X", "c", "Y", "e"]);
-        let mut model = DiffModel::new(left, right);
+        let mut model = new_model(left, right);
 
         model.current_block = 1;
         model.copy_left_to_right();
@@ -439,7 +452,7 @@ mod tests {
         // Two changes: line 1 and line 3.
         let left = content_from(&["a", "b", "c", "d", "e"]);
         let right = content_from(&["a", "X", "c", "Y", "e"]);
-        let mut model = DiffModel::new(left, right);
+        let mut model = new_model(left, right);
 
         // Copy block 0 left→right (resolves "b" vs "X").
         model.copy_left_to_right();

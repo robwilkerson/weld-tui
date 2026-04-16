@@ -78,7 +78,12 @@ impl App {
     /// Construct an App from pre-loaded file contents (no filesystem access).
     pub fn from_contents(left_content: Content, right_content: Content, config: Config) -> Self {
         App {
-            model: DiffModel::new(left_content, right_content),
+            model: DiffModel::new(
+                left_content,
+                right_content,
+                config.undo_capacity,
+                config.tab_width,
+            ),
             theme: Theme::default(),
             running: true,
             mode: Mode::default(),
