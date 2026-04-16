@@ -133,6 +133,7 @@ mod tests {
     use crossterm::event::KeyEvent;
     use weld_core::file::io::Content;
 
+    use crate::config::Config;
     use crate::viewport::Viewport;
 
     /// Build a plain KeyEvent (no modifiers) from a KeyCode.
@@ -144,6 +145,7 @@ mod tests {
         let mut app = App::from_contents(
             Content::from_lines(left_lines),
             Content::from_lines(right_lines),
+            Config::default(),
         );
         app.viewport = Viewport {
             scroll_y: 0,

@@ -12,6 +12,9 @@ use weld_core::text::expand_tabs;
 use crate::app::App;
 use crate::theme::Theme;
 
+/// Fixed width (in columns) of the minimap pane when shown.
+const MINIMAP_WIDTH: u16 = 1;
+
 /// Gutter + code lines for one side of the diff.
 struct SideLines {
     gutter: Vec<ratatui::text::Line<'static>>,
@@ -231,10 +234,9 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     let [body, status] =
         Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).areas(frame.area());
 
-    let (left_area, right_area, minimap_area) = if app.minimap_width > 0 {
+    let (left_area, right_area, minimap_area) = if app.show_minimap {
         let [panes, minimap] =
-            Layout::horizontal([Constraint::Min(0), Constraint::Length(app.minimap_width)])
-                .areas(body);
+            Layout::horizontal([Constraint::Min(0), Constraint::Length(MINIMAP_WIDTH)]).areas(body);
 
         let [left, right] =
             Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])

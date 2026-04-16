@@ -15,3 +15,9 @@ ratatui = "0.30"
 crossterm = "0.29"
 clap = { version = "4", features = ["derive"] }
 clap_complete = "4"
+serde = { version = "1", features = ["derive"] }
+toml = "1"
+dirs = "6"
+
+[dev-dependencies]
+tempfile = "3"

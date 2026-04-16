@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use weld_core::file::diff_model::DiffModel;
 use weld_core::file::io::{Content, shorten_dir};
 
+use crate::config::Config;
 use crate::theme::Theme;
 use crate::viewport::Viewport;
 
@@ -37,18 +38,18 @@ pub struct App {
     pub needs_initial_scroll: bool,
     pub viewport: Viewport,
     pub input: InputState,
-    pub minimap_width: u16,
+    pub show_minimap: bool,
 }
 
 impl App {
-    pub fn new(left: PathBuf, right: PathBuf) -> Result<Self, std::io::Error> {
+    pub fn new(left: PathBuf, right: PathBuf, config: Config) -> Result<Self, std::io::Error> {
         let left_content = Content::load(&left)?;
         let right_content = Content::load(&right)?;
 
         let left_abs = left.canonicalize().unwrap_or(left);
         let right_abs = right.canonicalize().unwrap_or(right);
 
-        let mut app = Self::from_contents(left_content, right_content);
+        let mut app = Self::from_contents(left_content, right_content, config);
         app.left_dir = shorten_dir(
             &left_abs
                 .parent()
@@ -75,7 +76,7 @@ impl App {
     }
 
     /// Construct an App from pre-loaded file contents (no filesystem access).
-    pub fn from_contents(left_content: Content, right_content: Content) -> Self {
+    pub fn from_contents(left_content: Content, right_content: Content, config: Config) -> Self {
         App {
             model: DiffModel::new(left_content, right_content),
             theme: Theme::default(),
@@ -88,7 +89,7 @@ impl App {
             needs_initial_scroll: false,
             viewport: Viewport::default(),
             input: InputState::default(),
-            minimap_width: 1,
+            show_minimap: config.show_minimap,
         }
     }
 }

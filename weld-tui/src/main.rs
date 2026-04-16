@@ -1,4 +1,5 @@
 mod app;
+mod config;
 mod event;
 mod file_diff;
 mod input;
@@ -12,6 +13,7 @@ use clap::Parser;
 use crossterm::event::{Event, KeyEventKind};
 
 use crate::app::App;
+use crate::config::Config;
 
 #[derive(Parser)]
 #[command(name = "weld", version, about = "TUI diff and merge tool")]
@@ -25,7 +27,9 @@ struct Cli {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
-    let mut app = App::new(cli.left, cli.right)?;
+    let config = Config::load()?;
+
+    let mut app = App::new(cli.left, cli.right, config)?;
 
     // Restore the terminal on panic so it doesn't stay in raw mode.
     let default_hook = std::panic::take_hook();
