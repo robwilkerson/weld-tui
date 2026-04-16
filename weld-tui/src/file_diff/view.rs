@@ -12,6 +12,9 @@ use weld_core::text::expand_tabs;
 use crate::app::App;
 use crate::theme::Theme;
 
+/// Fixed width (in columns) of the minimap pane when shown.
+const MINIMAP_WIDTH: u16 = 1;
+
 /// Gutter + code lines for one side of the diff.
 struct SideLines {
     gutter: Vec<ratatui::text::Line<'static>>,
@@ -39,6 +42,7 @@ struct PaneContext<'a> {
     active_block_index: Option<usize>,
     dirty: bool,
     theme: &'a Theme,
+    tab_width: usize,
 }
 
 fn build_side_lines(ctx: &PaneContext, gutter_width: u16) -> SideLines {
@@ -50,6 +54,7 @@ fn build_side_lines(ctx: &PaneContext, gutter_width: u16) -> SideLines {
     let diff = ctx.diff;
     let theme = ctx.theme;
     let active_block_index = ctx.active_block_index;
+    let tab_width = ctx.tab_width;
 
     let mut gutter = Vec::with_capacity(display_rows.len());
     let mut code = Vec::with_capacity(display_rows.len());
@@ -108,7 +113,7 @@ fn build_side_lines(ctx: &PaneContext, gutter_width: u16) -> SideLines {
             spans.push(Span::styled(" ".to_string(), base_style)); // leading space
 
             for seg in segments {
-                let text = expand_tabs(&seg.text);
+                let text = expand_tabs(&seg.text, tab_width);
                 let style = match seg.kind {
                     InlineKind::Equal => base_style,
                     InlineKind::Changed => emphasis_style,
@@ -132,7 +137,7 @@ fn build_side_lines(ctx: &PaneContext, gutter_width: u16) -> SideLines {
         // Default: uniform style for the whole line.
         let line_style = Style::default().fg(theme.fg).bg(bg);
         let text = if let Some(idx) = line_idx {
-            format!(" {}", expand_tabs(&lines[idx]))
+            format!(" {}", expand_tabs(&lines[idx], tab_width))
         } else {
             " ".to_string()
         };
@@ -231,10 +236,9 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     let [body, status] =
         Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).areas(frame.area());
 
-    let (left_area, right_area, minimap_area) = if app.minimap_width > 0 {
+    let (left_area, right_area, minimap_area) = if app.show_minimap {
         let [panes, minimap] =
-            Layout::horizontal([Constraint::Min(0), Constraint::Length(app.minimap_width)])
-                .areas(body);
+            Layout::horizontal([Constraint::Min(0), Constraint::Length(MINIMAP_WIDTH)]).areas(body);
 
         let [left, right] =
             Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
@@ -307,6 +311,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
             active_block_index,
             dirty: app.model.left_dirty,
             theme,
+            tab_width: app.model.tab_width,
         },
     );
     render_file_pane(
@@ -326,6 +331,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
             active_block_index,
             dirty: app.model.right_dirty,
             theme,
+            tab_width: app.model.tab_width,
         },
     );
 
