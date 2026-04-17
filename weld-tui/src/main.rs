@@ -3,6 +3,7 @@ mod config;
 mod event;
 mod file_diff;
 mod input;
+mod overlay;
 mod theme;
 mod viewport;
 
@@ -66,6 +67,11 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let result = main_loop(&mut terminal, &mut app);
 
     ratatui::restore();
+
+    for name in &app.saved_files {
+        println!("{name}: saved");
+    }
+
     result
 }
 

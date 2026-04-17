@@ -10,6 +10,7 @@ use weld_core::file::inline_diff::InlineKind;
 use weld_core::text::expand_tabs;
 
 use crate::app::App;
+use crate::overlay::{self, Overlay};
 use crate::theme::Theme;
 
 /// Fixed width (in columns) of the minimap pane when shown.
@@ -231,6 +232,51 @@ fn render_file_pane(frame: &mut Frame, area: ratatui::layout::Rect, ctx: &PaneCo
     );
 }
 
+/// Build the status-bar hint line with optional chord-progress highlighting.
+fn status_hint<'a>(app: &App, theme: &Theme) -> ratatui::text::Line<'a> {
+    let normal = Style::default().fg(theme.status_bar_fg);
+    let highlight = Style::default()
+        .fg(theme.key_hint_fg)
+        .add_modifier(ratatui::style::Modifier::BOLD);
+
+    let is_dirty = app.model.left_dirty || app.model.right_dirty;
+
+    let prefix = if app.model.change_count == 0 {
+        " Files are identical  [".to_string()
+    } else {
+        format!(
+            " {}/{}  [",
+            app.model.current_block + 1,
+            app.model.change_count,
+        )
+    };
+
+    if !is_dirty {
+        return ratatui::text::Line::from(vec![
+            Span::styled(prefix, normal),
+            Span::styled("q → quit", normal),
+            Span::styled("]", normal),
+        ]);
+    }
+
+    // Dirty — check if `q` chord is in progress and not expired
+    let q_active = app.input.pending_q
+        && app
+            .input
+            .pending_q_at
+            .map(|t| t.elapsed() <= crate::app::CHORD_TIMEOUT)
+            .unwrap_or(false);
+
+    let q_style = if q_active { highlight } else { normal };
+
+    ratatui::text::Line::from(vec![
+        Span::styled(prefix, normal),
+        Span::styled("q", q_style),
+        Span::styled("! → force quit", normal),
+        Span::styled("]", normal),
+    ])
+}
+
 /// Top-level UI: two file panes side by side + status bar.
 pub fn draw(frame: &mut Frame, app: &mut App) {
     let [body, status] =
@@ -393,23 +439,15 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
         );
     }
 
-    // Status bar
-    let change_count = app.model.change_count;
-    let hint_text = if change_count == 0 {
-        " Files are identical  [q → quit]".to_string()
-    } else {
-        format!(
-            " {}/{}  [q → quit]",
-            app.model.current_block + 1,
-            change_count,
-        )
-    };
-    let hint_style = Style::default().fg(theme.status_bar_fg);
+    // Status bar.
+    let hint_line = status_hint(app, theme);
     frame.render_widget(
-        Paragraph::new(ratatui::text::Line::from(vec![Span::styled(
-            hint_text, hint_style,
-        )]))
-        .alignment(Alignment::Center),
+        Paragraph::new(hint_line).alignment(Alignment::Center),
         status,
     );
+
+    // Modal overlays render on top of everything else.
+    if let Some(Overlay::WriteError { path, message }) = &app.overlay {
+        overlay::render_write_error(frame, frame.area(), theme, path, message);
+    }
 }
