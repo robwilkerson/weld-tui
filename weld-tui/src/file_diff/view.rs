@@ -269,12 +269,18 @@ fn status_hint<'a>(app: &App, theme: &Theme) -> ratatui::text::Line<'a> {
 
     let q_style = if q_active { highlight } else { normal };
 
-    ratatui::text::Line::from(vec![
-        Span::styled(prefix, normal),
-        Span::styled("q", q_style),
-        Span::styled("! → force quit", normal),
-        Span::styled("]", normal),
-    ])
+    let both_dirty = app.model.left_dirty && app.model.right_dirty;
+
+    let mut spans = vec![Span::styled(prefix, normal)];
+    if !both_dirty {
+        spans.push(Span::styled("w → save", normal));
+        spans.push(Span::styled(" | ", normal));
+    }
+    spans.push(Span::styled("q", q_style));
+    spans.push(Span::styled("! → force quit", normal));
+    spans.push(Span::styled("]", normal));
+
+    ratatui::text::Line::from(spans)
 }
 
 /// Top-level UI: two file panes side by side + status bar.

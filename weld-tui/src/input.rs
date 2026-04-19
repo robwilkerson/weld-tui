@@ -91,6 +91,12 @@ fn handle_normal_key(app: &mut App, key: KeyEvent) {
             app.model.copy_right_to_left();
             scroll_to_current_block(app);
         }
+        KeyCode::Char('w') => {
+            let both_dirty = app.model.left_dirty && app.model.right_dirty;
+            if !both_dirty {
+                save_all_dirty(app);
+            }
+        }
         KeyCode::Char('u') => {
             app.model.undo();
             scroll_to_current_block(app);
@@ -684,6 +690,81 @@ mod tests {
 
         assert!(app.overlay.is_none());
         assert!(app.running);
+    }
+
+    // ---- Step 2: `w` save binding ----
+
+    #[test]
+    fn w_saves_when_one_side_dirty() {
+        let left = vec!["a", "b"];
+        let right = vec!["a", "X"];
+        let (mut app, _dir) = test_app_with_files(&left, &right);
+        handle_key(&mut app, key(KeyCode::Char('L'))); // dirty right
+
+        handle_key(&mut app, key(KeyCode::Char('w')));
+
+        assert!(!app.model.right_dirty, "w should clear dirty flag");
+        assert_eq!(app.saved_files, vec!["right.txt"]);
+        assert!(app.overlay.is_none());
+    }
+
+    #[test]
+    fn w_noop_when_clean() {
+        let left = vec!["a", "b"];
+        let right = vec!["a", "b"];
+        let (mut app, _dir) = test_app_with_files(&left, &right);
+
+        handle_key(&mut app, key(KeyCode::Char('w')));
+
+        assert!(app.saved_files.is_empty());
+        assert!(app.overlay.is_none());
+    }
+
+    #[test]
+    fn w_noop_when_both_dirty() {
+        let left = vec!["a", "b"];
+        let right = vec!["a", "X"];
+        let (mut app, _dir) = test_app_with_files(&left, &right);
+        app.model.left_dirty = true;
+        app.model.right_dirty = true;
+
+        handle_key(&mut app, key(KeyCode::Char('w')));
+
+        assert!(app.model.left_dirty, "both-dirty w should not save");
+        assert!(app.model.right_dirty, "both-dirty w should not save");
+        assert!(app.saved_files.is_empty());
+    }
+
+    #[test]
+    fn w_shows_error_overlay_on_write_failure() {
+        let left = vec!["a", "b"];
+        let right = vec!["a", "X"];
+        let mut app = test_app(&left, &right, (40, 10));
+        // Content::from_lines has no real path — save will fail
+        app.model.right_dirty = true;
+
+        handle_key(&mut app, key(KeyCode::Char('w')));
+
+        assert!(
+            matches!(app.overlay, Some(Overlay::WriteError { .. })),
+            "write failure should show error overlay"
+        );
+        assert!(app.model.right_dirty, "dirty flag preserved on failure");
+    }
+
+    #[test]
+    fn wq_composition_saves_then_quits() {
+        let left = vec!["a", "b"];
+        let right = vec!["a", "X"];
+        let (mut app, _dir) = test_app_with_files(&left, &right);
+        handle_key(&mut app, key(KeyCode::Char('L'))); // dirty right
+
+        handle_key(&mut app, key(KeyCode::Char('w'))); // save
+        handle_key(&mut app, key(KeyCode::Char('q'))); // quit (now clean)
+
+        assert!(!app.running, "q after w should quit");
+        assert!(!app.model.right_dirty);
+        assert_eq!(app.saved_files, vec!["right.txt"]);
     }
 
     #[test]
