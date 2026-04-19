@@ -68,6 +68,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     ratatui::restore();
 
+    app.saved_files.dedup();
     for name in &app.saved_files {
         println!("{name}: saved");
     }

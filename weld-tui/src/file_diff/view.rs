@@ -22,11 +22,7 @@ struct SideLines {
     code: Vec<ratatui::text::Line<'static>>,
 }
 
-#[derive(Clone, Copy)]
-enum Side {
-    Left,
-    Right,
-}
+use crate::app::Side;
 
 /// Shared parameters for rendering a file pane.
 struct PaneContext<'a> {
@@ -251,37 +247,33 @@ fn status_hint<'a>(app: &App, theme: &Theme) -> ratatui::text::Line<'a> {
         )
     };
 
-    if !is_dirty {
-        return ratatui::text::Line::from(vec![
-            Span::styled(prefix, normal),
-            Span::styled("q → quit", normal),
-            Span::styled("]", normal),
-        ]);
-    }
-
-    // Dirty — check if `q` chord is in progress and not expired
-    let q_active = app.input.pending_q
-        && app
-            .input
-            .pending_q_at
-            .map(|t| t.elapsed() <= crate::app::CHORD_TIMEOUT)
-            .unwrap_or(false);
-
-    let q_style = if q_active { highlight } else { normal };
-
-    let both_dirty = app.model.left_dirty && app.model.right_dirty;
-
     let mut spans = vec![Span::styled(prefix, normal)];
-    if both_dirty {
-        spans.push(Span::styled("w → save…", normal));
-    } else {
-        spans.push(Span::styled("w → save", normal));
+
+    if is_dirty {
+        let q_active = app.input.pending_q
+            && app
+                .input
+                .pending_q_at
+                .map(|t| t.elapsed() <= crate::app::CHORD_TIMEOUT)
+                .unwrap_or(false);
+
+        let q_style = if q_active { highlight } else { normal };
+        let both_dirty = app.model.left_dirty && app.model.right_dirty;
+
+        if both_dirty {
+            spans.push(Span::styled("w → save…", normal));
+        } else {
+            spans.push(Span::styled("w → save", normal));
+            spans.push(Span::styled(" | ", normal));
+            spans.push(Span::styled("wq → save & quit", normal));
+        }
         spans.push(Span::styled(" | ", normal));
-        spans.push(Span::styled("wq → save & quit", normal));
+        spans.push(Span::styled("q", q_style));
+        spans.push(Span::styled("! → force quit", normal));
+    } else {
+        spans.push(Span::styled("q → quit", normal));
     }
-    spans.push(Span::styled(" | ", normal));
-    spans.push(Span::styled("q", q_style));
-    spans.push(Span::styled("! → force quit", normal));
+
     spans.push(Span::styled("]", normal));
 
     ratatui::text::Line::from(spans)

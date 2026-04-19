@@ -114,11 +114,10 @@ fn handle_normal_key(app: &mut App, key: KeyEvent) {
 /// Dispatch input while an overlay is active.
 fn handle_overlay_key(app: &mut App, key: KeyEvent) {
     match &app.overlay {
-        Some(Overlay::WriteError { .. }) => {
-            if key.code == KeyCode::Esc {
-                app.overlay = None;
-            }
+        Some(Overlay::WriteError { .. }) if key.code == KeyCode::Esc => {
+            app.overlay = None;
         }
+        Some(Overlay::WriteError { .. }) => {}
         Some(Overlay::SavePicker) => match key.code {
             KeyCode::Char('l') => {
                 app.overlay = None;
@@ -844,9 +843,14 @@ mod tests {
     fn w_shows_error_overlay_on_write_failure() {
         let left = vec!["a", "b"];
         let right = vec!["a", "X"];
-        let mut app = test_app(&left, &right, (40, 10));
-        // Content::from_lines has no real path — save will fail
-        app.model.right_dirty = true;
+        let (mut app, _dir) = test_app_with_files(&left, &right);
+        handle_key(&mut app, key(KeyCode::Char('L'))); // dirty right
+
+        // Make the file read-only so save() fails with a permission error.
+        let right_path = _dir.path().join("right.txt");
+        let mut perms = std::fs::metadata(&right_path).unwrap().permissions();
+        perms.set_readonly(true);
+        std::fs::set_permissions(&right_path, perms.clone()).unwrap();
 
         handle_key(&mut app, key(KeyCode::Char('w')));
 
@@ -855,6 +859,10 @@ mod tests {
             "write failure should show error overlay"
         );
         assert!(app.model.right_dirty, "dirty flag preserved on failure");
+
+        // Restore permissions so tempdir cleanup succeeds.
+        perms.set_readonly(false);
+        std::fs::set_permissions(&right_path, perms).unwrap();
     }
 
     #[test]

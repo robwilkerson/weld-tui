@@ -13,7 +13,7 @@ pub enum Overlay {
     WriteError { path: String, message: String },
 
     /// Shown when `w` is pressed with both sides dirty.
-    /// Lets the user pick which side(s) to save: `l`, `r`, `b`, or `Esc`.
+    /// Lets the user pick which side(s) to save: (l)eft, (r)ight, (a)ll, or Esc.
     SavePicker,
 }
 
@@ -93,10 +93,12 @@ fn centered_rect(percent_x: u16, height: u16, area: Rect) -> Rect {
         Constraint::Min(0),
     ])
     .areas(area);
+    let left = (100 - percent_x) / 2;
+    let right = 100 - percent_x - left;
     let [_, modal, _] = Layout::horizontal([
-        Constraint::Percentage((100 - percent_x) / 2),
+        Constraint::Percentage(left),
         Constraint::Percentage(percent_x),
-        Constraint::Percentage((100 - percent_x) / 2),
+        Constraint::Percentage(right),
     ])
     .areas(middle);
     modal
