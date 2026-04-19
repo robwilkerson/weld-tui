@@ -841,6 +841,8 @@ mod tests {
 
     #[test]
     fn w_shows_error_overlay_on_write_failure() {
+        use std::os::unix::fs::PermissionsExt;
+
         let left = vec!["a", "b"];
         let right = vec!["a", "X"];
         let (mut app, _dir) = test_app_with_files(&left, &right);
@@ -848,9 +850,8 @@ mod tests {
 
         // Make the file read-only so save() fails with a permission error.
         let right_path = _dir.path().join("right.txt");
-        let mut perms = std::fs::metadata(&right_path).unwrap().permissions();
-        perms.set_readonly(true);
-        std::fs::set_permissions(&right_path, perms.clone()).unwrap();
+        let original_mode = std::fs::metadata(&right_path).unwrap().permissions().mode();
+        std::fs::set_permissions(&right_path, std::fs::Permissions::from_mode(0o444)).unwrap();
 
         handle_key(&mut app, key(KeyCode::Char('w')));
 
@@ -861,8 +862,8 @@ mod tests {
         assert!(app.model.right_dirty, "dirty flag preserved on failure");
 
         // Restore permissions so tempdir cleanup succeeds.
-        perms.set_readonly(false);
-        std::fs::set_permissions(&right_path, perms).unwrap();
+        std::fs::set_permissions(&right_path, std::fs::Permissions::from_mode(original_mode))
+            .unwrap();
     }
 
     #[test]
