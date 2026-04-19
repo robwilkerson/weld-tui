@@ -11,6 +11,10 @@ pub enum Overlay {
     /// Shown after a save failure. Displays the file path and OS error.
     /// Renders as a centered modal. Dismissed with `Esc`.
     WriteError { path: String, message: String },
+
+    /// Shown when `w` is pressed with both sides dirty.
+    /// Lets the user pick which side(s) to save: `l`, `r`, `b`, or `Esc`.
+    SavePicker,
 }
 
 /// Render the `WriteError` modal centered in `area`.
@@ -38,6 +42,39 @@ pub fn render_write_error(frame: &mut Frame, area: Rect, theme: &Theme, path: &s
         Line::from(vec![Span::styled(format!("  {message}"), fg)]),
         Line::from(""),
         Line::from(vec![Span::styled("  Esc to dismiss", fg)]),
+    ];
+
+    frame.render_widget(
+        Paragraph::new(lines)
+            .block(block)
+            .wrap(Wrap { trim: false }),
+        modal,
+    );
+}
+
+/// Render the `SavePicker` modal centered in `area`.
+pub fn render_save_picker(frame: &mut Frame, area: Rect, theme: &Theme) {
+    let modal = centered_rect(40, 7, area);
+
+    let bg = Style::default().bg(theme.overlay_bg);
+    let fg = Style::default().fg(theme.overlay_fg).bg(theme.overlay_bg);
+    let title_style = Style::default()
+        .fg(theme.overlay_fg)
+        .bg(theme.overlay_bg)
+        .add_modifier(Modifier::BOLD);
+
+    frame.render_widget(Clear, modal);
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .title(Span::styled(" Save which side? ", title_style))
+        .style(bg);
+
+    let lines = vec![
+        Line::from(""),
+        Line::from(vec![Span::styled("  l → left   r → right   a → all", fg)]),
+        Line::from(""),
+        Line::from(vec![Span::styled("  Esc to cancel", fg)]),
     ];
 
     frame.render_widget(

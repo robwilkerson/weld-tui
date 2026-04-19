@@ -93,7 +93,9 @@ fn handle_normal_key(app: &mut App, key: KeyEvent) {
         }
         KeyCode::Char('w') => {
             let both_dirty = app.model.left_dirty && app.model.right_dirty;
-            if !both_dirty {
+            if both_dirty {
+                app.overlay = Some(Overlay::SavePicker);
+            } else {
                 save_all_dirty(app);
             }
         }
@@ -117,6 +119,24 @@ fn handle_overlay_key(app: &mut App, key: KeyEvent) {
                 app.overlay = None;
             }
         }
+        Some(Overlay::SavePicker) => match key.code {
+            KeyCode::Char('l') => {
+                app.overlay = None;
+                save_side(app, Side::Left);
+            }
+            KeyCode::Char('r') => {
+                app.overlay = None;
+                save_side(app, Side::Right);
+            }
+            KeyCode::Char('a') => {
+                app.overlay = None;
+                save_all_dirty(app);
+            }
+            KeyCode::Esc => {
+                app.overlay = None;
+            }
+            _ => {}
+        },
         None => {}
     }
 }
@@ -721,7 +741,7 @@ mod tests {
     }
 
     #[test]
-    fn w_noop_when_both_dirty() {
+    fn w_opens_picker_when_both_dirty() {
         let left = vec!["a", "b"];
         let right = vec!["a", "X"];
         let (mut app, _dir) = test_app_with_files(&left, &right);
@@ -730,9 +750,94 @@ mod tests {
 
         handle_key(&mut app, key(KeyCode::Char('w')));
 
-        assert!(app.model.left_dirty, "both-dirty w should not save");
-        assert!(app.model.right_dirty, "both-dirty w should not save");
-        assert!(app.saved_files.is_empty());
+        assert!(
+            matches!(app.overlay, Some(Overlay::SavePicker)),
+            "both-dirty w should open SavePicker"
+        );
+        assert!(app.saved_files.is_empty(), "nothing saved yet");
+    }
+
+    #[test]
+    fn save_picker_l_saves_left() {
+        let left = vec!["a", "X"];
+        let right = vec!["a", "Y"];
+        let (mut app, _dir) = test_app_with_files(&left, &right);
+        app.model.left_dirty = true;
+        app.model.right_dirty = true;
+        app.overlay = Some(Overlay::SavePicker);
+
+        handle_key(&mut app, key(KeyCode::Char('l')));
+
+        assert!(!app.model.left_dirty, "l should save left");
+        assert!(app.model.right_dirty, "l should not save right");
+        assert_eq!(app.saved_files, vec!["left.txt"]);
+        assert!(app.overlay.is_none(), "picker should dismiss");
+    }
+
+    #[test]
+    fn save_picker_r_saves_right() {
+        let left = vec!["a", "X"];
+        let right = vec!["a", "Y"];
+        let (mut app, _dir) = test_app_with_files(&left, &right);
+        app.model.left_dirty = true;
+        app.model.right_dirty = true;
+        app.overlay = Some(Overlay::SavePicker);
+
+        handle_key(&mut app, key(KeyCode::Char('r')));
+
+        assert!(app.model.left_dirty, "r should not save left");
+        assert!(!app.model.right_dirty, "r should save right");
+        assert_eq!(app.saved_files, vec!["right.txt"]);
+        assert!(app.overlay.is_none());
+    }
+
+    #[test]
+    fn save_picker_a_saves_all() {
+        let left = vec!["a", "X"];
+        let right = vec!["a", "Y"];
+        let (mut app, _dir) = test_app_with_files(&left, &right);
+        app.model.left_dirty = true;
+        app.model.right_dirty = true;
+        app.overlay = Some(Overlay::SavePicker);
+
+        handle_key(&mut app, key(KeyCode::Char('a')));
+
+        assert!(!app.model.left_dirty, "a should save left");
+        assert!(!app.model.right_dirty, "a should save right");
+        assert_eq!(app.saved_files.len(), 2);
+        assert!(app.overlay.is_none());
+    }
+
+    #[test]
+    fn save_picker_esc_dismisses() {
+        let left = vec!["a", "X"];
+        let right = vec!["a", "Y"];
+        let (mut app, _dir) = test_app_with_files(&left, &right);
+        app.model.left_dirty = true;
+        app.model.right_dirty = true;
+        app.overlay = Some(Overlay::SavePicker);
+
+        handle_key(&mut app, key(KeyCode::Esc));
+
+        assert!(app.overlay.is_none(), "Esc should dismiss picker");
+        assert!(app.model.left_dirty, "Esc should not save");
+        assert!(app.model.right_dirty, "Esc should not save");
+    }
+
+    #[test]
+    fn save_picker_swallows_other_keys() {
+        let left = vec!["a", "X"];
+        let right = vec!["a", "Y"];
+        let (mut app, _dir) = test_app_with_files(&left, &right);
+        app.model.left_dirty = true;
+        app.model.right_dirty = true;
+        app.overlay = Some(Overlay::SavePicker);
+
+        let before = app.viewport.scroll_y;
+        handle_key(&mut app, key(KeyCode::Char('j')));
+
+        assert!(matches!(app.overlay, Some(Overlay::SavePicker)));
+        assert_eq!(app.viewport.scroll_y, before, "j must not scroll in picker");
     }
 
     #[test]

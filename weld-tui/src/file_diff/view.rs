@@ -272,10 +272,14 @@ fn status_hint<'a>(app: &App, theme: &Theme) -> ratatui::text::Line<'a> {
     let both_dirty = app.model.left_dirty && app.model.right_dirty;
 
     let mut spans = vec![Span::styled(prefix, normal)];
-    if !both_dirty {
+    if both_dirty {
+        spans.push(Span::styled("w → save…", normal));
+    } else {
         spans.push(Span::styled("w → save", normal));
         spans.push(Span::styled(" | ", normal));
+        spans.push(Span::styled("wq → save & quit", normal));
     }
+    spans.push(Span::styled(" | ", normal));
     spans.push(Span::styled("q", q_style));
     spans.push(Span::styled("! → force quit", normal));
     spans.push(Span::styled("]", normal));
@@ -453,7 +457,13 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     );
 
     // Modal overlays render on top of everything else.
-    if let Some(Overlay::WriteError { path, message }) = &app.overlay {
-        overlay::render_write_error(frame, frame.area(), theme, path, message);
+    match &app.overlay {
+        Some(Overlay::WriteError { path, message }) => {
+            overlay::render_write_error(frame, frame.area(), theme, path, message);
+        }
+        Some(Overlay::SavePicker) => {
+            overlay::render_save_picker(frame, frame.area(), theme);
+        }
+        None => {}
     }
 }
