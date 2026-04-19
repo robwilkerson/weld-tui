@@ -170,6 +170,10 @@ fn save_side(app: &mut App, side: Side) -> bool {
         Side::Left => app.left_filename.clone(),
         Side::Right => app.right_filename.clone(),
     };
+    let full_path = match side {
+        Side::Left => app.model.left_content.path().display().to_string(),
+        Side::Right => app.model.right_content.path().display().to_string(),
+    };
     match result {
         Ok(()) => {
             match side {
@@ -181,7 +185,7 @@ fn save_side(app: &mut App, side: Side) -> bool {
         }
         Err(err) => {
             app.overlay = Some(Overlay::WriteError {
-                path: filename,
+                path: full_path,
                 message: err.to_string(),
             });
             false
