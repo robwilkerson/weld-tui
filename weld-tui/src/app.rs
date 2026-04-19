@@ -27,7 +27,7 @@ pub enum Side {
 }
 
 /// Maximum time between keystrokes in a chord sequence (e.g., `q!`).
-// TODO: make configurable via config.toml (see #27 discussion)
+// TODO: make configurable via config.toml (#38)
 pub const CHORD_TIMEOUT: Duration = Duration::from_millis(500);
 
 /// Tracks multi-key input sequences (e.g., `gg`, `q!`).
