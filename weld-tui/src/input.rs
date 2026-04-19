@@ -840,6 +840,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn w_shows_error_overlay_on_write_failure() {
         use std::os::unix::fs::PermissionsExt;
 

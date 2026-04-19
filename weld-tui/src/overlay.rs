@@ -7,6 +7,7 @@ use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
 use crate::theme::Theme;
 
 /// Modal overlays that intercept input until dismissed.
+#[derive(Debug, PartialEq)]
 pub enum Overlay {
     /// Shown after a save failure. Displays the file path and OS error.
     /// Renders as a centered modal. Dismissed with `Esc`.
